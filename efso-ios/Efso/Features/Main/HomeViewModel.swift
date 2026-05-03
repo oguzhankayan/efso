@@ -218,10 +218,10 @@ final class HomeViewModel {
         lastError = nil
     }
 
-    /// Aynı input ile yeniden üret. tone parametresi verilirse seçilen tonu
-    /// günceller (ResultView'daki ton switcher buradan geçer).
-    /// `setTone: true` ile nil verirse "üç farklı ton" default'una döner.
-    func regenerate(tone: Tone? = nil, setTone: Bool = false) {
+    /// Picker'a geri dön — ton değiştirip yeniden üretebilsin.
+    /// Screenshot/manual state korunur, conversationId sıfırlanır
+    /// (yeni üretim yeni history entry oluşturur).
+    func regenerate() {
         let mode: Mode? = {
             switch stage {
             case .result(let r): return r.mode
@@ -232,29 +232,21 @@ final class HomeViewModel {
         guard let mode else { return }
         generationTask?.cancel()
         generationTask = nil
-        if setTone { selectedTone = tone }
         streamingObservation = ""
         streamingReplies = [:]
         lastError = nil
-        generationPhase = .parsing
-        stage = .generation(mode)
+        generationPhase = .idle
+        conversationId = nil
 
         if mode == .tonla {
-            guard !draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                lastError = "taslak metni boş"
-                generationPhase = .failed
-                return
-            }
-            generationTask = Task { await runTonlaGeneration() }
-        } else if let existingConvId = conversationId {
-            generationTask = Task { await streamGenerateReplies(conversationId: existingConvId, mode: mode) }
+            stage = .picker(mode)
+        } else if manualInputConfirmed {
+            isManualMode = true
+            stage = .picker(mode)
+        } else if pickerState != .empty {
+            stage = .picker(mode)
         } else {
-            guard let data = pickedScreenshot else {
-                lastError = "önce ekran görüntüsü seç"
-                generationPhase = .failed
-                return
-            }
-            generationTask = Task { await runRealGeneration(mode: mode, imageData: data) }
+            backToHome()
         }
     }
 
