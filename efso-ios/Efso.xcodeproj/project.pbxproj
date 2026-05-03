@@ -197,7 +197,6 @@
 		EAA6361F999CCFE40A94A437 /* ManualChatComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualChatComposerView.swift; sourceTree = "<group>"; };
 		EB97236569373F67D65AD9B9 /* GicikUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GicikUITests.swift; sourceTree = "<group>"; };
 		F25755053D7635EC83AE010A /* ReplyCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplyCard.swift; sourceTree = "<group>"; };
-		F4CA1BBB2FA74EFC0012E502 /* EfsoProducts.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; name = EfsoProducts.storekit; path = Efso/EfsoProducts.storekit; sourceTree = "<group>"; };
 		F545F93E1D8B1D793BDE9682 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		FBE49F037BB3B5C4A4A884DD /* ValueIntroView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValueIntroView.swift; sourceTree = "<group>"; };
 		FC1E0C3F447F104919D54E06 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
@@ -290,7 +289,6 @@
 		702795FCB983DAD6EA9A3847 = {
 			isa = PBXGroup;
 			children = (
-				F4CA1BBB2FA74EFC0012E502 /* EfsoProducts.storekit */,
 				F89D94EDED659845BAACEF51 /* Efso */,
 				783C9EDABBB7F4DB38EB3F42 /* efso-ios */,
 				7B1C384B8EA9B74CD99F5D97 /* EfsoTests */,
