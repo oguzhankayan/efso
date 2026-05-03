@@ -1,6 +1,9 @@
 import Foundation
 import Observation
+import os.log
 @preconcurrency import RevenueCat
+
+private let logger = Logger(subsystem: "to.tikla.efso", category: "SubscriptionManager")
 
 /// Subscription state — RevenueCat wrapper.
 /// `bootstrap()` EfsoApp init'te çağrılır. UI `currentEntitlement` izler.
@@ -32,18 +35,10 @@ final class SubscriptionManager: NSObject {
         // hep true döner; geliştirici free tier limit'ine takılmaz.
         // Backend tarafı için ayrıca subscription_state row'unun seed'lenmesi
         // gerekir (efso-backend test fixture'ı).
-        #if targetEnvironment(simulator) && DEBUG
-        isActive = true
-        return
-        #else
         let key = Configuration.revenueCatAPIKey
         guard !key.isEmpty else {
-            // Free build (TestFlight öncesi) — RevenueCat bypass.
-            // DEBUG'da physical device'da key yoksa, sessizce premium vermek
-            // tehlikeli (TestFlight build'de fark edilmeyebilir). Assertion
-            // ile gürültü yap.
-            assertionFailure("REVENUECAT_API_KEY boş — physical device DEBUG'da bypass aktif. Release'e gitmemeli.")
-            isActive = Configuration.isDebug ? true : false
+            logger.warning("RC bootstrap: API key boş, isActive=\(Configuration.isDebug)")
+            isActive = Configuration.isDebug
             return
         }
 
@@ -51,28 +46,35 @@ final class SubscriptionManager: NSObject {
         Purchases.configure(withAPIKey: key)
         rcConfigured = true
         Purchases.shared.delegate = self
+        logger.info("RC bootstrap: configured, rcConfigured=true")
 
         Task {
             await refreshCustomerInfo()
             await loadOfferings()
+            logger.info("RC state: isActive=\(self.isActive), weekly=\(self.weeklyPackage != nil), yearly=\(self.yearlyPackage != nil)")
         }
-        #endif
     }
 
     /// Auth tamamlandığında user_id'yi RevenueCat'e bağla.
     func identify(userId: String) async {
-        guard rcConfigured else { return }
+        guard rcConfigured else {
+            logger.warning("RC identify: skipped, not configured")
+            return
+        }
+        logger.info("RC identify: \(userId)")
         do {
             _ = try await Purchases.shared.logIn(userId)
             await refreshCustomerInfo()
+            logger.info("RC identify: success, isActive=\(self.isActive)")
         } catch {
-            // RevenueCat identify hatası — kullanıcıya gösterilmez
+            logger.error("RC identify failed: \(error.localizedDescription)")
             lastError = "bağlantı hatası. tekrar dene."
         }
     }
 
     func signOut() async {
         guard rcConfigured else { return }
+        logger.info("RC signOut")
         _ = try? await Purchases.shared.logOut()
         isActive = false
     }
@@ -102,24 +104,24 @@ final class SubscriptionManager: NSObject {
     /// kısa bir bekleme + customerInfo refresh ile webhook propagation
     /// için "iyi-niyet" gecikmesi. Paywall'da "..." spinner zaten gösteriliyor.
     func purchase(_ package: Package) async -> Bool {
+        logger.info("RC purchase: starting \(package.storeProduct.productIdentifier)")
         isLoading = true
         defer { isLoading = false }
         do {
             let result = try await Purchases.shared.purchase(package: package)
             apply(customerInfo: result.customerInfo)
+            logger.info("RC purchase: success, isActive=\(self.isActive)")
             if isActive {
-                // Webhook propagation ortalama 1-3s; 4s defansiyel.
-                // Kullanıcıya hissel olarak "ödeme işleniyor" geliyor.
                 try? await Task.sleep(for: .seconds(4))
                 await refreshCustomerInfo()
             }
             return isActive
         } catch {
-            // Cancel = hata değil
             if let rcError = error as? RevenueCat.ErrorCode, rcError == .purchaseCancelledError {
+                logger.info("RC purchase: cancelled by user")
                 return false
             }
-            // Satın alma hatası — teknik detay kullanıcıya gösterilmez
+            logger.error("RC purchase failed: \(error.localizedDescription)")
             lastError = "ödeme tamamlanamadı. tekrar dene."
             return false
         }
@@ -127,14 +129,16 @@ final class SubscriptionManager: NSObject {
 
     /// "Restore purchases" — başka cihazda satın aldıysa.
     func restore() async -> Bool {
+        logger.info("RC restore: starting")
         isLoading = true
         defer { isLoading = false }
         do {
             let info = try await Purchases.shared.restorePurchases()
             apply(customerInfo: info)
+            logger.info("RC restore: success, isActive=\(self.isActive)")
             return isActive
         } catch {
-            // Restore hatası — teknik detay kullanıcıya gösterilmez
+            logger.error("RC restore failed: \(error.localizedDescription)")
             lastError = "geri yükleme başarısız. tekrar dene."
             return false
         }
@@ -147,14 +151,19 @@ final class SubscriptionManager: NSObject {
         do {
             let info = try await Purchases.shared.customerInfo()
             apply(customerInfo: info)
+            logger.info("RC refreshCustomerInfo: isActive=\(self.isActive)")
         } catch {
-            // CustomerInfo refresh hatası — kullanıcıya gösterilmez
+            logger.error("RC refreshCustomerInfo failed: \(error.localizedDescription)")
             lastError = "abonelik durumu alınamadı. tekrar dene."
         }
     }
 
     private func apply(customerInfo: CustomerInfo) {
+        let was = isActive
         isActive = customerInfo.entitlements[entitlementId]?.isActive == true
+        if was != isActive {
+            logger.info("RC apply: isActive \(was) → \(self.isActive)")
+        }
     }
 }
 
