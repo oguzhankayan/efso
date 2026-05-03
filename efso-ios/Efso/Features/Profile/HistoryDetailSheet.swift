@@ -31,11 +31,6 @@ struct HistoryDetailSheet: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 16) {
-                    if let obs = item.observation, !obs.isEmpty {
-                        AssistantObservationCard(text: obs, fontSize: 15, showLabel: true)
-                            .padding(.horizontal, 20)
-                    }
-
                     if !item.replies.isEmpty {
                         VStack(spacing: 10) {
                             ForEach(Array(item.replies.enumerated()), id: \.element.id) { idx, reply in
