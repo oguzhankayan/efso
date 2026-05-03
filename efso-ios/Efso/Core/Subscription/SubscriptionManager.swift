@@ -25,6 +25,7 @@ final class SubscriptionManager: NSObject {
     private let weeklyProductId = "efso_weekly"
     private let yearlyProductId = "efso_yearly"
     private var rcConfigured = false
+    private var debugOverride = false
 
     private override init() { super.init() }
 
@@ -77,6 +78,7 @@ final class SubscriptionManager: NSObject {
         logger.info("RC signOut")
         _ = try? await Purchases.shared.logOut()
         isActive = false
+        debugOverride = false
     }
 
     // MARK: - Offerings + purchase
@@ -112,8 +114,10 @@ final class SubscriptionManager: NSObject {
             apply(customerInfo: result.customerInfo)
             #if DEBUG
             if !isActive && !result.userCancelled {
-                logger.info("RC purchase: Xcode env — forcing isActive=true")
+                logger.info("RC purchase: Xcode env — forcing isActive=true (debugOverride)")
                 isActive = true
+                debugOverride = true
+                return true
             }
             #endif
             logger.info("RC purchase: success, isActive=\(self.isActive)")
@@ -165,6 +169,7 @@ final class SubscriptionManager: NSObject {
     }
 
     private func apply(customerInfo: CustomerInfo) {
+        if debugOverride { return }
         let was = isActive
         isActive = customerInfo.entitlements[entitlementId]?.isActive == true
         if was != isActive {
