@@ -1,9 +1,8 @@
 import SwiftUI
 import UIKit
 
-/// Refined-y2k generation loading — chrome chrome ring + italic "düşünüyor." +
-/// 5-line process checklist. Streaming arrived → asistan observation pull-quote +
-/// reply stack. Failure → italic "tutmadı" + retry.
+/// Refined-y2k generation loading — chrome ring + italic "düşünüyor." +
+/// process phase label. Streaming → reply stack. Failure → error + retry.
 struct GenerationView: View {
     @Bindable var vm: HomeViewModel
     let mode: Mode

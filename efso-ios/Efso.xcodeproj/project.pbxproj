@@ -184,7 +184,7 @@
 		CBAC313C5A245B85FBA0B4FC /* ScreenshotPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotPickerView.swift; sourceTree = "<group>"; };
 		D1D5CD0E5F4B4CF1F156718A /* Logo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logo.swift; sourceTree = "<group>"; };
 		D7565DFA07F9E220F5AA9C9D /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
-		D7FABCD3424069E0FADB65EC /* EfsoProducts.storekit */ = {isa = PBXFileReference; includeInIndex = 1; name = EfsoProducts.storekit; path = EfsoProducts.storekit; sourceTree = "<group>"; };
+		D7FABCD3424069E0FADB65EC /* EfsoProducts.storekit */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text; path = EfsoProducts.storekit; sourceTree = "<group>"; };
 		D88ADEA86EE26466FCC32066 /* EfsoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EfsoApp.swift; sourceTree = "<group>"; };
 		D8E7A3E0A88549C5D3BA11C6 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
 		DBB1A5C7D8DEAFE8729ACCDE /* GicikTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GicikTests.swift; sourceTree = "<group>"; };
@@ -197,6 +197,7 @@
 		EAA6361F999CCFE40A94A437 /* ManualChatComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualChatComposerView.swift; sourceTree = "<group>"; };
 		EB97236569373F67D65AD9B9 /* GicikUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GicikUITests.swift; sourceTree = "<group>"; };
 		F25755053D7635EC83AE010A /* ReplyCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplyCard.swift; sourceTree = "<group>"; };
+		F4CA1BBB2FA74EFC0012E502 /* EfsoProducts.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; name = EfsoProducts.storekit; path = Efso/EfsoProducts.storekit; sourceTree = "<group>"; };
 		F545F93E1D8B1D793BDE9682 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		FBE49F037BB3B5C4A4A884DD /* ValueIntroView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValueIntroView.swift; sourceTree = "<group>"; };
 		FC1E0C3F447F104919D54E06 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
@@ -289,6 +290,7 @@
 		702795FCB983DAD6EA9A3847 = {
 			isa = PBXGroup;
 			children = (
+				F4CA1BBB2FA74EFC0012E502 /* EfsoProducts.storekit */,
 				F89D94EDED659845BAACEF51 /* Efso */,
 				783C9EDABBB7F4DB38EB3F42 /* efso-ios */,
 				7B1C384B8EA9B74CD99F5D97 /* EfsoTests */,

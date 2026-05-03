@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Refined-y2k sonuç ekranı — observation pull-quote (mor sol-bordür) +
-/// primary card (holographic 2pt highlight + ink CTA) + 2 alternatif.
+/// Refined-y2k sonuç ekranı — 3 reply card (holographic 2pt highlight + ink CTA).
+/// Failure state shows observation only.
 struct ResultView: View {
     @Bindable var vm: HomeViewModel
     let result: GenerationResult
