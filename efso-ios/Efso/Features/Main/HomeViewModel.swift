@@ -265,6 +265,7 @@ final class HomeViewModel {
             lastError = "önce ekran görüntüsü seç"
             return
         }
+        guard checkQuotaOrPaywall() else { return }
         stage = .generation(mode)
         generationTask = Task { await runRealGeneration(mode: mode, imageData: data) }
     }
@@ -305,6 +306,7 @@ final class HomeViewModel {
     /// Manuel giriş ekranından generation'a geçiş (cevap/açılış/davet).
     func proceedToManualGeneration() {
         guard case .picker(let mode) = stage else { return }
+        guard checkQuotaOrPaywall() else { return }
         stage = .generation(mode)
         generationTask = Task { await runManualGeneration(mode: mode) }
     }
@@ -321,8 +323,18 @@ final class HomeViewModel {
             lastError = "ton seç"
             return
         }
+        guard checkQuotaOrPaywall() else { return }
         stage = .generation(.tonla)
         generationTask = Task { await runTonlaGeneration() }
+    }
+
+    private func checkQuotaOrPaywall() -> Bool {
+        let subs = SubscriptionManager.shared
+        if !subs.isActive && !EntitlementGate.canGenerate(isPremium: false, todayCount: todayUsageCount) {
+            paywallTrigger = .dailyLimit
+            return false
+        }
+        return true
     }
 
     /// Streaming partial result — GenerationView reads this for live UI.
