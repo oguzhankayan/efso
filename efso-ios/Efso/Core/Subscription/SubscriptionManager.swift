@@ -127,11 +127,18 @@ final class SubscriptionManager: NSObject {
             }
             return isActive
         } catch {
+            let nsError = error as NSError
             if let rcError = error as? RevenueCat.ErrorCode, rcError == .purchaseCancelledError {
                 logger.info("RC purchase: cancelled by user")
                 return false
             }
-            logger.error("RC purchase failed: \(error.localizedDescription)")
+            if nsError.domain == RevenueCat.ErrorCode.errorDomain,
+               nsError.code == RevenueCat.ErrorCode.productAlreadyPurchasedError.rawValue {
+                logger.info("RC purchase: already purchased — refreshing customerInfo")
+                await refreshCustomerInfo()
+                return isActive
+            }
+            logger.error("RC purchase failed: domain=\(nsError.domain) code=\(nsError.code) \(error.localizedDescription)")
             lastError = "ödeme tamamlanamadı. tekrar dene."
             return false
         }
@@ -154,6 +161,29 @@ final class SubscriptionManager: NSObject {
         }
     }
 
+    /// RevenueCat bazen sandbox purchase'ı `$RCAnonymousID...` altında tutar.
+    /// Generation backend'i ise Supabase UUID üzerinden `subscription_state`
+    /// okur. Premium lokal görünüyorsa ama backend hâlâ free dönüyorsa,
+    /// purchase/restore öncesi kimliği tekrar Supabase UUID'ye bağla ve RC'nin
+    /// webhook'u doğru user_id ile tekrar göndermesi için restore dene.
+    func resyncCurrentSupabaseUser() async -> Bool {
+        guard rcConfigured else { return isActive }
+        guard let userId = AuthService.shared.userID?.uuidString else { return isActive }
+        do {
+            _ = try await Purchases.shared.logIn(userId)
+            let info = try await Purchases.shared.restorePurchases()
+            apply(customerInfo: info)
+            if isActive {
+                try? await Task.sleep(for: .seconds(2))
+            }
+            logger.info("RC resyncCurrentSupabaseUser: user=\(userId), isActive=\(self.isActive)")
+            return isActive
+        } catch {
+            logger.error("RC resyncCurrentSupabaseUser failed: \(error.localizedDescription)")
+            return isActive
+        }
+    }
+
     // MARK: - Internal
 
     private func refreshCustomerInfo() async {
@@ -171,9 +201,11 @@ final class SubscriptionManager: NSObject {
     private func apply(customerInfo: CustomerInfo) {
         if debugOverride { return }
         let was = isActive
-        isActive = customerInfo.entitlements[entitlementId]?.isActive == true
-        if was != isActive {
-            logger.info("RC apply: isActive \(was) → \(self.isActive)")
+        let ent = customerInfo.entitlements[entitlementId]
+        isActive = ent?.isActive == true
+        logger.info("RC apply: entitlement[\(self.entitlementId)] exists=\(ent != nil) isActive=\(ent?.isActive ?? false) product=\(ent?.productIdentifier ?? "nil") → isActive \(was) → \(self.isActive)")
+        if customerInfo.entitlements.all.isEmpty {
+            logger.warning("RC apply: NO entitlements found — check RevenueCat dashboard product→entitlement mapping")
         }
     }
 }

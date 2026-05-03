@@ -22,6 +22,13 @@ export type ArchetypePrimary =
 // ──────────────────────────────────────────────────────────
 export type ScreenshotType = "chat" | "profile";
 
+export interface ParseSummary {
+  platform: Platform;
+  screenshot_type: ScreenshotType | "draft";
+  context_summary_tr: string;
+  injection_attempt: boolean;
+}
+
 export interface ProfileExtract {
   name?: string | null;
   handle?: string | null;        // @username (insta/twitter/etc)
@@ -71,6 +78,12 @@ export interface GenerationResult {
   observation: string;       // Asistan sesi — italic obs cards
   replies: ReplyOption[];    // Output sesi — reply cards
   duration_ms: number;
+}
+
+export interface RefineResult {
+  reply: ReplyOption;
+  remaining_refines_today: number | null;
+  is_premium: boolean;
 }
 
 // ──────────────────────────────────────────────────────────

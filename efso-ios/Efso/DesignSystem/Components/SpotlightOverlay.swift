@@ -150,14 +150,14 @@ struct SpotlightOverlay: View {
         .padding(14)
         .frame(width: maxWidth, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                 .fill(AppColor.bg1)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                         .strokeBorder(AppColor.holographic, lineWidth: 1)
                         .opacity(0.6)
                 )
-                .shadow(color: .black.opacity(0.5), radius: 24, x: 0, y: 10)
+                .shadow(color: AppColor.bg0.opacity(0.5), radius: 24, x: 0, y: 10)
         )
         // Caption'ın sol-üst köşesi (leadingX, finalY) konumunda olsun.
         .offset(x: leadingX, y: finalY)

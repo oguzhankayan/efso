@@ -1,4 +1,7 @@
 import SwiftUI
+import os
+
+private let logger = Logger(subsystem: "com.efso.app", category: "VoiceSampleEditor")
 
 /// Yazım tarzı editörü — kullanıcının mesaj örneklerinden stil öğrenir.
 struct VoiceSampleEditorView: View {
@@ -137,10 +140,10 @@ struct VoiceSampleEditorView: View {
                     }
             }
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                     .fill(AppColor.bg1)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                             .strokeBorder(AppColor.text20, lineWidth: 1)
                     )
             )
@@ -178,10 +181,10 @@ struct VoiceSampleEditorView: View {
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                 .fill(AppColor.bg2)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                         .strokeBorder(AppColor.text10, lineWidth: 1)
                 )
         )
@@ -213,6 +216,7 @@ struct VoiceSampleEditorView: View {
             sample = current
             initialSample = current
         } catch {
+            logger.error("ses örneği yüklenemedi: \(error.localizedDescription)")
             self.loadFailed = true
         }
     }
@@ -234,7 +238,7 @@ struct VoiceSampleEditorView: View {
             error = nil
             UINotificationFeedbackGenerator().notificationOccurred(.success)
         } catch {
-            // Kaydetme hatası — teknik detay kullanıcıya gösterilmez
+            logger.error("ses örneği kaydedilemedi: \(error.localizedDescription)")
             self.error = "kaydedilemedi. tekrar dene."
         }
     }

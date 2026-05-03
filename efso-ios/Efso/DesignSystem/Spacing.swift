@@ -12,6 +12,7 @@ enum AppSpacing {
 
 enum AppRadius {
     static let card: CGFloat = 20
+    static let section: CGFloat = 14
     static let button: CGFloat = 16
     static let input: CGFloat = 12
     static let chip: CGFloat = 999  // pill

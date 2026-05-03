@@ -85,6 +85,20 @@ struct GenerationView: View {
     private var parsingActivity: some View {
         VStack(spacing: 0) {
             Spacer()
+            if let data = vm.pickedScreenshot, let img = UIImage(data: data) {
+                Image(uiImage: img)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: 80, maxHeight: 80)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(AppColor.text10, lineWidth: 1)
+                    )
+                    .opacity(0.7)
+                    .padding(.bottom, 16)
+                    .accessibilityHidden(true)
+            }
             chromeRing
                 .frame(width: 100, height: 100)
             Text("düşünüyor.")
@@ -193,10 +207,10 @@ struct GenerationView: View {
         }
         .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                 .fill(AppColor.bg1)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                         .strokeBorder(AppColor.text10, lineWidth: 1)
                 )
         )

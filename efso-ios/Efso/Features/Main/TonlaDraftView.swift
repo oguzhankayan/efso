@@ -84,7 +84,7 @@ struct TonlaDraftView: View {
 
     private var quotaChip: some View {
         let usedToday = vm.todayUsageCount
-        let cap = 3
+        let cap = EntitlementGate.freeDailyLimit
         return Text("\(min(usedToday, cap))/\(cap)")
             .font(AppFont.mono(10))
             .tracking(0.14 * 10)
@@ -144,7 +144,7 @@ struct TonlaDraftView: View {
                     .foregroundColor(AppColor.text40)
                 Spacer()
                 if vm.draftText.count > 200 {
-                    Text("SES SIZIYOR · SİVİLT")
+                    Text("UZUN · KISALT")
                         .font(AppFont.mono(10))
                         .tracking(0.14 * 10)
                         .foregroundColor(AppColor.accent)
@@ -159,7 +159,7 @@ struct TonlaDraftView: View {
             HStack(alignment: .top, spacing: 10) {
                 Text("✦")
                     .foregroundColor(AppColor.accent)
-                Text("kızgınlığını saklayamıyorsun. yazıyı kısalt, soru ile bitir, gücünü kaybetme.")
+                Text("uzun mesajlar gücünü azaltır. kısa tut, soru ile bitir.")
                     .font(AppFont.displayItalic(13.5, weight: .regular))
                     .foregroundColor(AppColor.ink)
                     .lineSpacing(13.5 * 0.30)

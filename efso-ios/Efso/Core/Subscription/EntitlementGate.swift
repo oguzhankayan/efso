@@ -3,11 +3,12 @@ import Foundation
 /// Free vs premium feature gating.
 ///
 /// Free tier (2026-05-01 itibariyle):
-/// - 3 üretim / gün (cumulative — istediği modda, istediği tonda)
+/// - 5 üretim / gün (cumulative — istediği modda, istediği tonda)
+/// - 10 reply refinement / gün
 /// - Tüm 4 mod açık (cevap, açılış, tonla, davet)
 /// - Tüm 5 ton açık (default 3-ton kombosu + tek-ton seçimi)
 ///
-/// Tek pitch, tek throttle: **3/gün cap.** Mode lock ve tone lock kaldırıldı
+/// Tek pitch, tek throttle: **5/gün cap.** Mode lock ve tone lock kaldırıldı
 /// (sırayla 2026-05-01). Sebep: her iki kilit de "premium teaser"a benziyordu
 /// ama kullanıcı feature'ın değerini denemeden çevrilmediği için conversion
 /// düşüktü. 3/gün cap zaten yeterli throttle; premium pitch artık tek
@@ -15,7 +16,8 @@ import Foundation
 ///
 /// Premium: hepsi sınırsız.
 enum EntitlementGate {
-    static let freeDailyLimit: Int = 3
+    static let freeDailyLimit: Int = 5
+    static let freeRefineLimit: Int = 10
 
     /// Bugün için kalan free generation kotası.
     /// Premium ise +∞ (Int.max).
@@ -63,7 +65,7 @@ enum EntitlementGate {
 
         var headline: String {
             switch self {
-            case .dailyLimit: "günlük 3 cevabın doldu."
+            case .dailyLimit: "günlük 5 cevabın doldu."
             case .toneLocked(let t): "\(t.label.trLower) tonu premium."
             case .modeLocked(let m): "\(m.label.trLower) modu premium."
             case .userInitiated: "premium'a geç."

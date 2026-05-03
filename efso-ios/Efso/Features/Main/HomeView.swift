@@ -535,10 +535,10 @@ struct HomeView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                 .fill(AppColor.bg1)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                         .strokeBorder(AppColor.text10, lineWidth: 1)
                 )
         )
@@ -608,6 +608,7 @@ struct HomeView: View {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 9, weight: .medium))
                         .foregroundColor(AppColor.text30)
+                        .accessibilityHidden(true)
                 }
             }
             .frame(maxWidth: .infinity)

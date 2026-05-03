@@ -6,6 +6,8 @@ enum Endpoint: String {
     case parseScreenshot = "parse-screenshot"
     case createTextConversation = "create-text-conversation"
     case generateReplies = "generate-replies"
+    case generate = "generate"
+    case refineReply = "refine-reply"
     case promptFeedback = "prompt-feedback"
     case revenueCatWebhook = "revenuecat-webhook"
     /// Apple Guideline 5.1.1 — in-app account deletion. Kullanıcının

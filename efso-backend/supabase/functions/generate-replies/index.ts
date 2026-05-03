@@ -34,7 +34,7 @@ import {
 } from "../_shared/llm-client.ts";
 import type { Mode, Tone, ParseResult, GenerationResult } from "../_shared/types.ts";
 
-const FREE_DAILY_LIMIT = 3;
+const FREE_DAILY_LIMIT = 5;
 
 interface RequestBody {
   conversation_id: string;
@@ -153,7 +153,7 @@ Deno.serve(async (req: Request) => {
 
     if (!subState?.is_active) {
       if (todayCount >= FREE_DAILY_LIMIT) {
-        return errorResponse("free_tier_exceeded", "günlük 3 cevap doldu", 402);
+        return errorResponse("free_tier_exceeded", "günlük 5 cevap doldu", 402);
       }
     }
 
@@ -355,7 +355,7 @@ Deno.serve(async (req: Request) => {
         const durationMs = Date.now() - startTime;
 
         // DB writes parallelized — client'a SSE zaten gitti, bunlar fire-and-forget.
-        const dbWrites: Promise<unknown>[] = [
+        const dbWrites: Array<PromiseLike<unknown>> = [
           serviceClient.rpc("fn_increment_usage", { p_user_id: userId, p_cost_usd: cost }),
           serviceClient
             .from("profiles")
@@ -433,7 +433,8 @@ function buildUserPrompt(parse: ParseResult, tones: Tone[], mode: Mode): string 
     context_message?: string | null;
   };
 
-  const isDraft = mode === "tonla" || p.screenshot_type === "draft";
+  const screenshotType = p.screenshot_type as string | undefined;
+  const isDraft = mode === "tonla" || screenshotType === "draft";
   const isProfile = !isDraft && (
     mode === "acilis"
     || p.screenshot_type === "profile"

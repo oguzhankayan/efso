@@ -10,6 +10,8 @@ struct ResultView: View {
     @State private var feedbackGiven: Bool? = nil
     @State private var safeAreaTopInset: CGFloat = 59
     @State private var visibleCardCount = 0
+    @State private var observationCollapsed = false
+    @State private var refinementTarget: ReplyOption?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -23,6 +25,25 @@ struct ResultView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .sheet(item: $refinementTarget) { reply in
+            RefinementSheet(
+                remainingRefines: vm.remainingRefinesToday,
+                isPremium: vm.serverIsPremium,
+                isRefining: vm.isRefining,
+                onSubmit: { tone in
+                    Task {
+                        await vm.refineReply(index: reply.index, tone: tone)
+                        refinementTarget = nil
+                    }
+                },
+                onUpgrade: {
+                    refinementTarget = nil
+                    vm.paywallTrigger = .userInitiated
+                }
+            )
+            .presentationDetents([.medium])
+            .presentationBackground(AppColor.bg0)
+        }
     }
 
     private var topBar: some View {
@@ -58,12 +79,16 @@ struct ResultView: View {
     private var contentScroll: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 12) {
+                if !result.observation.isEmpty {
+                    observationSection
+                }
                 ForEach(Array(result.replies.enumerated()), id: \.element.id) { idx, reply in
                     ReplyCard(
                         toneAngle: reply.toneLabel,
                         text: reply.text,
                         isCopied: copiedIndex == reply.index,
-                        onCopy: { copy(reply) }
+                        onCopy: { copy(reply) },
+                        onRefine: { refinementTarget = reply }
                     )
                     .opacity(idx < visibleCardCount ? 1 : 0)
                     .offset(y: idx < visibleCardCount ? 0 : 16)
@@ -74,6 +99,38 @@ struct ResultView: View {
             .padding(.bottom, 12)
         }
         .onAppear { staggerReveal() }
+    }
+
+    private var observationSection: some View {
+        Button {
+            withAnimation(AppAnimation.standard) { observationCollapsed.toggle() }
+        } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 6) {
+                    EfsoTag("efso", color: AppColor.text60, dot: true, dotColor: AppColor.pop)
+                    Spacer()
+                    Image(systemName: observationCollapsed ? "chevron.down" : "chevron.up")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(AppColor.text40)
+                        .accessibilityHidden(true)
+                }
+                if !observationCollapsed {
+                    Text(result.observation.trLower)
+                        .font(AppFont.displayItalic(15, weight: .regular))
+                        .foregroundColor(AppColor.ink)
+                        .lineSpacing(15 * 0.25)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 8)
+                }
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
+                    .fill(AppColor.bg2)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("efso gözlemi: \(result.observation)")
     }
 
     private func staggerReveal() {
@@ -98,6 +155,7 @@ struct ResultView: View {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 28, weight: .light))
                 .foregroundColor(AppColor.text40)
+                .accessibilityHidden(true)
             Text("üretim tutmadı.")
                 .font(AppFont.displayItalic(24))
                 .foregroundColor(AppColor.ink)
@@ -143,9 +201,9 @@ struct ResultView: View {
                         .tracking(0.10 * 12)
                         .foregroundColor(AppColor.text60)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 46)
+                        .frame(height: 44)
                         .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                                 .strokeBorder(AppColor.text10, lineWidth: 1)
                         )
                 }
@@ -157,9 +215,9 @@ struct ResultView: View {
                         .tracking(0.10 * 12)
                         .foregroundColor(AppColor.bg0)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 46)
+                        .frame(height: 44)
                         .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                                 .fill(AppColor.ink)
                         )
                 }

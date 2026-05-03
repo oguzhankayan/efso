@@ -57,14 +57,14 @@ struct NotificationSettingsSheet: View {
                 notifToggle(title: "yenilikler", subtitle: "yeni özellikler ve güncellemeler", isOn: $updates)
             }
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                     .fill(AppColor.bg1)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                             .strokeBorder(AppColor.text10, lineWidth: 1)
                     )
             )
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous))
             .padding(.horizontal, 16)
 
             Spacer()
@@ -84,6 +84,7 @@ struct NotificationSettingsSheet: View {
                 Image(systemName: "bell.slash")
                     .font(.system(size: 16))
                     .foregroundColor(AppColor.warning)
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("bildirimler kapalı")
                         .font(AppFont.body(13, weight: .semibold))
@@ -96,6 +97,7 @@ struct NotificationSettingsSheet: View {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12))
                     .foregroundColor(AppColor.text40)
+                    .accessibilityHidden(true)
             }
             .padding(14)
             .background(

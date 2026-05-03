@@ -14,6 +14,9 @@ struct ConversationHistorySheet: View {
                         Text("henüz konuşma yok.")
                             .font(AppFont.body(14))
                             .foregroundColor(AppColor.text40)
+                        Text("ilk üretiminden sonra burada görünür.")
+                            .font(AppFont.body(12))
+                            .foregroundColor(AppColor.text30)
                     }
                     .frame(maxWidth: .infinity)
                 } else {

@@ -3,7 +3,7 @@ import PhotosUI
 import UIKit
 
 /// Refined-y2k cevap modu input — büyük italic başlık, dashed dropzone,
-/// "elle yaz" satırı, sticky ton seçici + holo "üç cevap üret" CTA.
+/// "elle yaz" satırı + holo "üret" CTA.
 /// PhotoKit recents + clipboard paste + extra context disclosure korundu.
 struct ScreenshotPickerView: View {
     @Bindable var vm: HomeViewModel
@@ -102,7 +102,7 @@ struct ScreenshotPickerView: View {
 
     private var quotaChip: some View {
         let usedToday = vm.todayUsageCount
-        let cap = 3
+        let cap = EntitlementGate.freeDailyLimit
         return Text("\(min(usedToday, cap))/\(cap)")
             .font(AppFont.mono(10))
             .tracking(0.14 * 10)
@@ -187,6 +187,7 @@ struct ScreenshotPickerView: View {
                     Image(systemName: "photo.on.rectangle.angled")
                         .font(.system(size: 22, weight: .light))
                         .foregroundColor(AppColor.accent)
+                        .accessibilityHidden(true)
                 }
                 .frame(width: 56, height: 56)
 
@@ -270,6 +271,7 @@ struct ScreenshotPickerView: View {
                 Image(systemName: "doc.on.clipboard")
                     .font(.system(size: 14))
                     .foregroundColor(AppColor.pop)
+                    .accessibilityHidden(true)
                 Text("panodan yapıştır")
                     .font(AppFont.body(14, weight: .medium))
                     .foregroundColor(AppColor.ink)
@@ -278,10 +280,10 @@ struct ScreenshotPickerView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                     .fill(AppColor.bg1)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                             .strokeBorder(AppColor.text10, lineWidth: 1)
                     )
             )
@@ -298,9 +300,9 @@ struct ScreenshotPickerView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(maxHeight: 220)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                             .strokeBorder(AppColor.text10, lineWidth: 1)
                     )
                     .opacity(0.75)
@@ -341,6 +343,7 @@ struct ScreenshotPickerView: View {
                         Image(systemName: "checkmark")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(AppColor.bg0)
+                            .accessibilityHidden(true)
                     )
                     .padding(10)
             }
@@ -379,6 +382,7 @@ struct ScreenshotPickerView: View {
                     Image(systemName: extraContextOpen ? "chevron.up" : "chevron.down")
                         .font(.system(size: 11))
                         .foregroundColor(AppColor.text40)
+                        .accessibilityHidden(true)
                 }
                 .contentShape(Rectangle())
             }
@@ -420,13 +424,11 @@ struct ScreenshotPickerView: View {
         }
     }
 
-    // MARK: - Bottom bar (sticky tone + CTA)
+    // MARK: - Bottom bar (CTA)
 
     @ViewBuilder
     private var bottomBar: some View {
         VStack(spacing: 12) {
-            tonePicker
-                .padding(.horizontal, 20)
             cta
                 .padding(.horizontal, 20)
                 .padding(.bottom, 24)
@@ -434,29 +436,16 @@ struct ScreenshotPickerView: View {
         .padding(.top, 12)
     }
 
-    private var tonePicker: some View {
-        TonePicker(
-            tones: Tone.allLabels,
-            selected: vm.selectedTone?.label.trLower ?? "",
-            onSelect: { label in
-                if let tone = Tone.allCases.first(where: { $0.label.trLower == label }) {
-                    vm.selectedTone = tone
-                }
-            },
-            label: ""
-        )
-    }
-
     @ViewBuilder
     private var cta: some View {
         if vm.manualInputConfirmed {
-            HoloPrimaryButton(title: "üç cevap üret") { vm.proceedToManualGeneration() }
+            HoloPrimaryButton(title: "üret") { vm.proceedToManualGeneration() }
         } else {
             switch vm.pickerState {
             case .done:
-                HoloPrimaryButton(title: "üç cevap üret") { vm.proceedToGeneration() }
+                HoloPrimaryButton(title: "üret") { vm.proceedToGeneration() }
             case .empty, .uploading:
-                HoloPrimaryButton(title: "üç cevap üret", isEnabled: false) {}
+                HoloPrimaryButton(title: "üret", isEnabled: false) {}
                     .opacity(0.35)
             }
         }
@@ -551,7 +540,7 @@ struct ScreenshotPickerView: View {
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                                 .fill(msg.sender == .user ? AppColor.ink : AppColor.bg2)
                         )
                     if msg.sender == .other { Spacer(minLength: 48) }

@@ -1,4 +1,5 @@
 import SwiftUI
+import os
 
 /// Refined-y2k arketip değiştirici sheet — italic "başka bir sesle dene." +
 /// 6 arketip listesi (custom ikon + key + meta) + ink "kaydet" CTA.
@@ -84,15 +85,18 @@ struct ArchetypeSwitcherSheet: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                     .fill(on ? AppColor.bg2 : Color.clear)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                             .strokeBorder(on ? AppColor.text20 : Color.clear, lineWidth: 1)
                     )
             )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("\(arch.label), \(arch.shortTitle)")
+        .accessibilityValue(on ? "seçili" : "")
+        .accessibilityHint("arketipi seçmek için dokun")
         .sensoryFeedback(.selection, trigger: selected)
     }
 
@@ -121,7 +125,7 @@ struct ArchetypeSwitcherSheet: View {
             try await vm.updateArchetype(selected)
             dismiss()
         } catch {
-            // Arketip kaydetme hatası — teknik detay kullanıcıya gösterilmez
+            Logger(subsystem: "com.efso.app", category: "ArchetypeSwitcher").error("arketip kaydedilemedi: \(error.localizedDescription)")
             self.error = "kaydedilemedi. tekrar dene."
         }
     }

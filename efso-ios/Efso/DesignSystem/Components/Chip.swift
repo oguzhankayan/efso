@@ -36,15 +36,14 @@ struct Chip: View {
             .font(AppFont.body(size == .large ? 15 : 14, weight: isSelected ? .semibold : .regular))
             .foregroundColor(isSelected ? AppColor.bg0 : AppColor.ink)
             .padding(.horizontal, size == .large ? 20 : 16)
-            .frame(height: size == .large ? 44 : 36)
+            .frame(height: 44)
             .background(
                 Capsule().fill(isSelected ? AppColor.ink : Color.clear)
             )
             .overlay(
                 Capsule().strokeBorder(isSelected ? Color.clear : AppColor.text20, lineWidth: 1)
             )
-            .contentShape(Rectangle().inset(by: -4))
-            .frame(minHeight: 44)
+            .contentShape(Capsule())
         }
         .sensoryFeedback(.selection, trigger: isSelected)
     }

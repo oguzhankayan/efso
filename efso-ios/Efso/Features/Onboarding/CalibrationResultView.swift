@@ -41,6 +41,7 @@ struct CalibrationResultView: View {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.system(size: 60, weight: .light))
                         .foregroundColor(AppColor.danger)
+                        .accessibilityHidden(true)
                         .frame(width: 200, height: 200)
                 } else {
                     ProgressView().tint(AppColor.accent).frame(width: 200, height: 200)

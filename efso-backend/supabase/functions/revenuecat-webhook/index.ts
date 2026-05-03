@@ -17,6 +17,10 @@ const WEBHOOK_SECRET = Deno.env.get("REVENUECAT_WEBHOOK_SECRET") ?? "";
 interface RCEvent {
   type: string;
   app_user_id: string;
+  aliases?: string[];
+  original_app_user_id?: string;
+  transferred_from?: string[];
+  transferred_to?: string[];
   product_id?: string;
   expiration_at_ms?: number;
   purchased_at_ms?: number;
@@ -43,7 +47,6 @@ const INACTIVE_TYPES = new Set([
   "CANCELLATION",
   "EXPIRATION",
   "BILLING_ISSUE",
-  "SUBSCRIBER_ALIAS",
 ]);
 
 Deno.serve(async (req: Request) => {
@@ -73,17 +76,26 @@ Deno.serve(async (req: Request) => {
     return errorResponse("invalid_input", "missing event fields");
   }
 
-  if (!UUID_RE.test(ev.app_user_id)) {
-    console.warn("non-UUID app_user_id ignored:", ev.app_user_id.slice(0, 30));
-    return jsonResponse({ ok: true, ignored: "non_uuid_user" });
-  }
-
   const isActive = ACTIVE_TYPES.has(ev.type);
   const isInactive = INACTIVE_TYPES.has(ev.type);
   if (!isActive && !isInactive) {
     // TEST event veya bilinmeyen — 200 dön ki RC retry yapmasın.
     return jsonResponse({ ok: true, ignored: ev.type });
   }
+
+  const candidateIds = [
+    ev.app_user_id,
+    ev.original_app_user_id,
+    ...(ev.aliases ?? []),
+    ...(ev.transferred_to ?? []),
+    ...(ev.transferred_from ?? []),
+  ].filter((id): id is string => Boolean(id));
+  const userId = candidateIds.find(id => UUID_RE.test(id));
+  if (!userId) {
+    console.warn("non-UUID RevenueCat customer ignored:", ev.app_user_id.slice(0, 30));
+    return jsonResponse({ ok: true, ignored: "non_uuid_user" });
+  }
+  const revenuecatCustomerId = candidateIds.find(id => !UUID_RE.test(id)) ?? ev.app_user_id;
 
   const client = createClient(SUPABASE_URL, SERVICE_KEY, {
     auth: { persistSession: false },
@@ -98,13 +110,14 @@ Deno.serve(async (req: Request) => {
 
   const { error } = await client.from("subscription_state").upsert(
     {
-      user_id: ev.app_user_id,
+      user_id: userId,
       is_active: isActive,
       entitlement: isActive ? "premium" : null,
       will_renew: ev.type !== "CANCELLATION" && isActive,
       product_identifier: ev.product_id ?? null,
       purchase_date: purchaseISO,
       expiration_date: expirationISO,
+      revenuecat_customer_id: revenuecatCustomerId,
     },
     { onConflict: "user_id" },
   );

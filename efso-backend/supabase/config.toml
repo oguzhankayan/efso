@@ -67,6 +67,12 @@ verify_jwt = true
 [functions.generate-replies]
 verify_jwt = true
 
+[functions.generate]
+verify_jwt = true
+
+[functions.refine-reply]
+verify_jwt = true
+
 [functions.prompt-feedback]
 verify_jwt = true
 

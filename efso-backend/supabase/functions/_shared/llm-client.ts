@@ -1,4 +1,4 @@
-// LLM client — Anthropic Claude Sonnet 4.6 + OpenAI GPT-4o-mini.
+// LLM client — Anthropic Claude Sonnet 4.6 + OpenAI GPT-4o-mini + OpenAI Responses.
 //
 // Anthropic: Stage 2 generation, streaming SSE, prompt caching on L0/L2/L4.
 // OpenAI: Stage 1 vision parse, structured JSON output.
@@ -18,6 +18,8 @@ const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 const OPENAI_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
 const OPENAI_MODEL = Deno.env.get("OPENAI_VISION_MODEL") ?? "gpt-4o-mini";
 const OPENAI_API = "https://api.openai.com/v1/chat/completions";
+const OPENAI_RESPONSES_API = "https://api.openai.com/v1/responses";
+const OPENAI_GENERATION_MODEL = Deno.env.get("OPENAI_GENERATION_MODEL") ?? "gpt-5.4";
 
 // Cost per million tokens (USD). Update if pricing changes.
 const COST_PER_MTOK = {
@@ -27,7 +29,146 @@ const COST_PER_MTOK = {
   anthropic_output: 15.0,
   openai_input: 0.15,    // gpt-4o-mini input
   openai_output: 0.60,   // gpt-4o-mini output
+  openai_gpt54_input: 2.50,
+  openai_gpt54_cached_input: 0.25,
+  openai_gpt54_output: 15.0,
 };
+
+export interface OpenAIResponsesUsage {
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  input_tokens_details?: {
+    cached_tokens?: number;
+  };
+}
+
+export function openaiResponsesCostUSD(u: OpenAIResponsesUsage): number {
+  const cached = u.input_tokens_details?.cached_tokens ?? 0;
+  const uncachedInput = Math.max(0, (u.input_tokens ?? 0) - cached);
+  const output = u.output_tokens ?? 0;
+  return (
+    uncachedInput * COST_PER_MTOK.openai_gpt54_input
+    + cached * COST_PER_MTOK.openai_gpt54_cached_input
+    + output * COST_PER_MTOK.openai_gpt54_output
+  ) / 1_000_000;
+}
+
+export interface OpenAIResponsesContent {
+  type: "input_text" | "input_image";
+  text?: string;
+  image_url?: string;
+  detail?: "low" | "high" | "auto";
+}
+
+export interface OpenAIResponsesRequest {
+  instructions: string;
+  input: OpenAIResponsesContent[];
+  schemaName: string;
+  schema: Record<string, unknown>;
+  maxOutputTokens?: number;
+  temperature?: number;
+  model?: string;
+}
+
+export interface OpenAIResponsesResponse<T> {
+  parsed: T;
+  rawText: string;
+  usage: OpenAIResponsesUsage;
+  durationMs: number;
+  model: string;
+}
+
+export async function callOpenAIResponsesJSON<T>(
+  req: OpenAIResponsesRequest,
+): Promise<OpenAIResponsesResponse<T>> {
+  if (!OPENAI_KEY) throw new Error("OPENAI_API_KEY not configured");
+
+  const start = Date.now();
+  const model = req.model ?? OPENAI_GENERATION_MODEL;
+  const body = {
+    model,
+    instructions: req.instructions,
+    input: [
+      {
+        role: "user",
+        content: req.input,
+      },
+    ],
+    text: {
+      format: {
+        type: "json_schema",
+        name: req.schemaName,
+        strict: true,
+        schema: req.schema,
+      },
+    },
+    max_output_tokens: req.maxOutputTokens ?? 1800,
+    temperature: req.temperature ?? 0.85,
+    store: false,
+  };
+
+  const response = await fetch(OPENAI_RESPONSES_API, {
+    method: "POST",
+    headers: {
+      "authorization": `Bearer ${OPENAI_KEY}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30_000),
+  });
+
+  if (!response.ok) {
+    const txt = await response.text().catch(() => "");
+    throw new Error(`openai responses ${response.status}: ${txt.slice(0, 500)}`);
+  }
+
+  const data = await response.json();
+  const rawText = extractResponsesText(data);
+  if (!rawText) throw new Error("openai responses: empty output_text");
+
+  let parsed: T;
+  try {
+    parsed = JSON.parse(rawText) as T;
+  } catch (e) {
+    throw new Error(`openai responses: invalid JSON: ${e instanceof Error ? e.message : e}`);
+  }
+
+  return {
+    parsed,
+    rawText,
+    usage: {
+      input_tokens: data?.usage?.input_tokens ?? 0,
+      output_tokens: data?.usage?.output_tokens ?? 0,
+      total_tokens: data?.usage?.total_tokens ?? 0,
+      input_tokens_details: data?.usage?.input_tokens_details,
+    },
+    durationMs: Date.now() - start,
+    model,
+  };
+}
+
+function extractResponsesText(data: unknown): string {
+  const d = data as {
+    output_text?: string;
+    output?: Array<{
+      type?: string;
+      content?: Array<{ type?: string; text?: string }>;
+    }>;
+  };
+  if (typeof d.output_text === "string" && d.output_text.length > 0) {
+    return d.output_text;
+  }
+  const texts: string[] = [];
+  for (const item of d.output ?? []) {
+    for (const content of item.content ?? []) {
+      if (content.type === "output_text" && typeof content.text === "string") {
+        texts.push(content.text);
+      }
+    }
+  }
+  return texts.join("");
+}
 
 // ──────────────────────────────────────────────────────────
 // Anthropic — streaming generation
@@ -41,8 +182,12 @@ export interface AnthropicSystemBlock {
 
 export interface AnthropicMessage {
   role: "user" | "assistant";
-  content: string;
+  content: string | AnthropicContentBlock[];
 }
+
+export type AnthropicContentBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
 
 export interface AnthropicStreamRequest {
   system: AnthropicSystemBlock[];   // multi-block, cache_control on shared layers
@@ -78,6 +223,88 @@ export interface StreamEvent {
   text?: string;
   usage?: AnthropicUsage;
   error?: string;
+}
+
+export interface AnthropicJSONRequest {
+  systemPrompt: string;
+  content: string | AnthropicContentBlock[];
+  maxTokens?: number;
+  temperature?: number;
+}
+
+export interface AnthropicJSONResponse<T> {
+  parsed: T;
+  rawText: string;
+  usage: AnthropicUsage;
+  durationMs: number;
+  model: string;
+}
+
+export async function callAnthropicJSON<T>(
+  req: AnthropicJSONRequest,
+): Promise<AnthropicJSONResponse<T>> {
+  if (!ANTHROPIC_KEY) throw new Error("ANTHROPIC_API_KEY not configured");
+
+  const start = Date.now();
+  const response = await fetch(ANTHROPIC_API, {
+    method: "POST",
+    headers: {
+      "x-api-key": ANTHROPIC_KEY,
+      "anthropic-version": "2023-06-01",
+      "anthropic-beta": "prompt-caching-2024-07-31",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: ANTHROPIC_MODEL,
+      max_tokens: req.maxTokens ?? 1200,
+      temperature: req.temperature ?? 0.85,
+      system: req.systemPrompt,
+      messages: [{ role: "user", content: req.content }],
+    }),
+    signal: AbortSignal.timeout(30_000),
+  });
+
+  if (!response.ok) {
+    const txt = await response.text().catch(() => "");
+    throw new Error(`anthropic ${response.status}: ${txt.slice(0, 500)}`);
+  }
+
+  const data = await response.json();
+  const rawText = (data?.content ?? [])
+    .filter((c: { type?: string; text?: string }) => c.type === "text" && typeof c.text === "string")
+    .map((c: { text: string }) => c.text)
+    .join("");
+  if (!rawText) throw new Error("anthropic: empty text output");
+
+  const jsonText = extractJSONText(rawText);
+  let parsed: T;
+  try {
+    parsed = JSON.parse(jsonText) as T;
+  } catch (e) {
+    throw new Error(`anthropic: invalid JSON: ${e instanceof Error ? e.message : e}`);
+  }
+
+  return {
+    parsed,
+    rawText,
+    usage: {
+      input_tokens: data?.usage?.input_tokens ?? 0,
+      output_tokens: data?.usage?.output_tokens ?? 0,
+      cache_creation_input_tokens: data?.usage?.cache_creation_input_tokens,
+      cache_read_input_tokens: data?.usage?.cache_read_input_tokens,
+    },
+    durationMs: Date.now() - start,
+    model: ANTHROPIC_MODEL,
+  };
+}
+
+function extractJSONText(text: string): string {
+  const trimmed = text.trim();
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) return trimmed;
+  const first = trimmed.indexOf("{");
+  const last = trimmed.lastIndexOf("}");
+  if (first >= 0 && last > first) return trimmed.slice(first, last + 1);
+  return trimmed;
 }
 
 /// Stream an Anthropic generation.

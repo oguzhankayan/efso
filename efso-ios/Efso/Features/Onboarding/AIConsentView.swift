@@ -69,6 +69,7 @@ struct AIConsentView: View {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 12, weight: .heavy))
                                 .foregroundColor(AppColor.bg0)
+                                .accessibilityHidden(true)
                         }
                     }
                     .frame(width: 44, height: 44)

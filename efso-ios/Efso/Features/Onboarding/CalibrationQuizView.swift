@@ -32,9 +32,21 @@ struct CalibrationQuizView: View {
                     Text("bir şeyler ters gitti.")
                         .font(AppFont.displayItalic(20, weight: .regular))
                         .foregroundColor(AppColor.ink)
-                    Text("uygulamayı kapat ve tekrar aç.")
+                    Text("tekrar dene, düzelir.")
                         .font(AppFont.body(14))
                         .foregroundColor(AppColor.text60)
+                    Button {
+                        vm.lastError = nil
+                        vm.retryCalibrationSubmit()
+                    } label: {
+                        Text("tekrar dene")
+                            .font(AppFont.mono(12))
+                            .tracking(0.10 * 12)
+                            .foregroundColor(AppColor.bg0)
+                            .padding(.horizontal, 20)
+                            .frame(height: 44)
+                            .background(Capsule().fill(AppColor.ink))
+                    }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.horizontal, 24)
@@ -146,11 +158,11 @@ struct CalibrationQuizView: View {
                     .padding(.horizontal, 18)
                     .padding(.vertical, 16)
                     .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                             .fill(on ? AppColor.bg2 : Color.clear)
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                             .strokeBorder(on ? AppColor.accent : AppColor.text10, lineWidth: 1)
                     )
                 }
@@ -247,16 +259,17 @@ struct CalibrationQuizView: View {
                         if on {
                             Image(systemName: "checkmark")
                                 .foregroundColor(AppColor.accent)
+                                .accessibilityHidden(true)
                         }
                     }
                     .padding(.horizontal, 18)
                     .padding(.vertical, 14)
                     .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                             .fill(on ? AppColor.bg2 : Color.clear)
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                             .strokeBorder(on ? AppColor.accent : AppColor.text10, lineWidth: 1)
                     )
                 }
@@ -365,10 +378,10 @@ struct CalibrationQuizView: View {
                     .frame(minHeight: 220)
             }
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                     .fill(AppColor.bg1)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                             .strokeBorder(AppColor.text10, lineWidth: 1)
                     )
             )

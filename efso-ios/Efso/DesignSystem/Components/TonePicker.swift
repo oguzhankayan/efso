@@ -24,20 +24,20 @@ struct TonePicker: View {
                                 .font(AppFont.body(13, weight: on ? .semibold : .regular))
                                 .foregroundColor(on ? AppColor.bg0 : AppColor.ink)
                                 .padding(.horizontal, 14)
-                                .frame(height: 36)
+                                .frame(height: 44)
                                 .background(
                                     Capsule().fill(on ? AppColor.ink : Color.clear)
                                 )
                                 .overlay(
                                     Capsule().stroke(on ? Color.clear : AppColor.text20, lineWidth: 1)
                                 )
-                                .contentShape(Rectangle().inset(by: -4))
-                                .frame(minHeight: 44)
+                                .contentShape(Capsule())
                                 .scaleEffect(pressedTone == tone ? 0.92 : 1.0)
                                 .animation(.spring(response: 0.2, dampingFraction: 0.65), value: pressedTone)
                         }
                         .accessibilityLabel(tone)
                         .accessibilityValue(on ? "seçili" : "")
+                        .accessibilityHint("tonu seçmek için dokun")
                         .sensoryFeedback(.selection, trigger: selected)
                         .simultaneousGesture(
                             DragGesture(minimumDistance: 0)

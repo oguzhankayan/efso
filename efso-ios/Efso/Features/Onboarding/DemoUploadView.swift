@@ -53,7 +53,7 @@ struct DemoUploadView: View {
         Button { onContinue() } label: {
             HStack(spacing: 16) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                         .fill(AppColor.bg2)
                     Text("📷").font(.system(size: 22))
                 }

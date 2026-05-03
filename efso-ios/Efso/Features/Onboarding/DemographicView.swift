@@ -141,11 +141,11 @@ struct DemographicView: View {
             .padding(.horizontal, 14)
             .frame(height: 64)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                     .fill(on ? AppColor.bg2 : Color.clear)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                     .strokeBorder(on ? AppColor.accent : AppColor.text10, lineWidth: 1)
             )
         }

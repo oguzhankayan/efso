@@ -6,6 +6,7 @@ struct ReplyCard: View {
     let text: String
     let isCopied: Bool
     let onCopy: () -> Void
+    let onRefine: (() -> Void)?
 
     @State private var isPressed = false
 
@@ -13,12 +14,14 @@ struct ReplyCard: View {
         toneAngle: String,
         text: String,
         isCopied: Bool = false,
-        onCopy: @escaping () -> Void
+        onCopy: @escaping () -> Void,
+        onRefine: (() -> Void)? = nil
     ) {
         self.toneAngle = toneAngle
         self.text = text
         self.isCopied = isCopied
         self.onCopy = onCopy
+        self.onRefine = onRefine
     }
 
     private static let copiedTexts = [
@@ -50,20 +53,52 @@ struct ReplyCard: View {
                 .padding(.bottom, 14)
                 .fixedSize(horizontal: false, vertical: true)
 
-            copyButton
+            actionRow
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(AppColor.bg1)
+                .fill(
+                    LinearGradient(
+                        colors: [AppColor.bg2, AppColor.bg1],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
                 .overlay(
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .strokeBorder(isCopied ? AppColor.text20 : AppColor.text10, lineWidth: 1)
+                        .strokeBorder(isCopied ? AppColor.text20 : AppColor.text10, lineWidth: 1.5)
                 )
         )
         .scaleEffect(isPressed ? 0.975 : 1.0)
         .animation(.easeOut(duration: 0.15), value: isPressed)
+    }
+
+    private var actionRow: some View {
+        HStack(spacing: 10) {
+            copyButton
+
+            Button {
+                if let onRefine { onRefine() }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "wand.and.stars")
+                        .font(.system(size: 13, weight: .medium))
+                        .accessibilityHidden(true)
+                    Text("tonla")
+                }
+                .font(AppFont.body(13, weight: .medium))
+                .foregroundColor(AppColor.text60)
+                .padding(.horizontal, 12)
+                .frame(height: 44)
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(onRefine == nil)
+            .opacity(onRefine == nil ? 0.45 : 1)
+            .accessibilityLabel("bu cevabı tonla")
+        }
     }
 
     private var copyButton: some View {
@@ -83,12 +118,12 @@ struct ReplyCard: View {
                 }
             }
             .font(AppFont.body(13, weight: .medium))
-            .foregroundColor(AppColor.ink)
+            .foregroundColor(AppColor.bg0)
             .frame(maxWidth: .infinity)
             .frame(height: 44)
             .background(
                 RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .strokeBorder(AppColor.text20, lineWidth: 1)
+                    .fill(isCopied ? AppColor.pop : AppColor.ink)
             )
             .contentTransition(.numericText())
         }

@@ -129,6 +129,7 @@ struct PaywallView: View {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 18, weight: .medium))
                         .foregroundColor(AppColor.accent)
+                        .accessibilityHidden(true)
                     Text(f)
                         .font(AppFont.body(14.5))
                         .foregroundColor(AppColor.ink)
@@ -288,10 +289,10 @@ struct PlanSelectorSheet: View {
         .padding(.horizontal, AppSpacing.md)
         .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                 .fill(AppColor.bg2.opacity(0.6))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                         .strokeBorder(AppColor.text10, lineWidth: 1)
                 )
         )
@@ -320,10 +321,10 @@ struct PlanSelectorSheet: View {
         }
         .padding(AppSpacing.md)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                 .fill(AppColor.bg2.opacity(0.6))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                         .strokeBorder(AppColor.text10, lineWidth: 1)
                 )
         )
@@ -407,10 +408,10 @@ struct PlanSelectorSheet: View {
         }
         .padding(AppSpacing.md)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                 .fill(AppColor.bg2.opacity(0.6))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                         .strokeBorder(AppColor.text10, lineWidth: 1)
                 )
         )
@@ -453,11 +454,11 @@ struct PlanSelectorSheet: View {
     // MARK: - Pricing
 
     private var weeklyPriceText: String {
-        subs.weeklyPackage?.storeProduct.localizedPriceString ?? "₺49 / hafta"
+        subs.weeklyPackage?.storeProduct.localizedPriceString ?? "₺79,99 / hafta"
     }
 
     private var perDayText: String? {
-        guard let pkg = subs.weeklyPackage else { return "günlük ~₺7" }
+        guard let pkg = subs.weeklyPackage else { return "günlük ~₺11" }
         let price = pkg.storeProduct.price as Decimal
         let perDay = NSDecimalNumber(decimal: price / 7).doubleValue
         let formatter = NumberFormatter()

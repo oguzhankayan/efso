@@ -42,7 +42,9 @@ final class HomeViewModel {
     /// nil = henüz bilinmiyor (cold launch) veya premium (sınırsız).
     /// `serverIsPremium` ile beraber okunur.
     var remainingToday: Int?
+    var remainingRefinesToday: Int?
     var serverIsPremium: Bool = false
+    var isRefining: Bool = false
 
     // MARK: - Cached stats
 
@@ -168,7 +170,7 @@ final class HomeViewModel {
 
     func selectMode(_ mode: Mode) {
         resetFlowState()
-        selectedTone = .esprili
+        selectedTone = mode == .tonla ? .esprili : nil
         stage = .picker(mode)
     }
 
@@ -259,7 +261,7 @@ final class HomeViewModel {
         }
         guard checkQuotaOrPaywall() else { return }
         stage = .generation(mode)
-        generationTask = Task { await runRealGeneration(mode: mode, imageData: data) }
+        generationTask = Task { await runUnifiedGeneration(mode: mode, imageData: data) }
     }
 
     /// Manuel giriş onayı — validasyon geçerse picker'a döner (ton seçimi için).
@@ -300,7 +302,7 @@ final class HomeViewModel {
         guard case .picker(let mode) = stage else { return }
         guard checkQuotaOrPaywall() else { return }
         stage = .generation(mode)
-        generationTask = Task { await runManualGeneration(mode: mode) }
+        generationTask = Task { await runUnifiedManualGeneration(mode: mode) }
     }
 
     /// Tonla draft view'dan generation'a geçiş.
@@ -317,12 +319,12 @@ final class HomeViewModel {
         }
         guard checkQuotaOrPaywall() else { return }
         stage = .generation(.tonla)
-        generationTask = Task { await runTonlaGeneration() }
+        generationTask = Task { await runUnifiedTonlaGeneration() }
     }
 
     private func checkQuotaOrPaywall() -> Bool {
         let subs = SubscriptionManager.shared
-        if !subs.isActive && !EntitlementGate.canGenerate(isPremium: false, todayCount: todayUsageCount) {
+        if !(subs.isActive || serverIsPremium) && !EntitlementGate.canGenerate(isPremium: false, todayCount: todayUsageCount) {
             paywallTrigger = .dailyLimit
             return false
         }
@@ -410,12 +412,13 @@ final class HomeViewModel {
     /// için ortak entry. Picker state machine'e tek yerden besler.
     func acceptScreenshotData(_ data: Data) {
         pickerState = .uploading(progress: 0.6)
-        pickedScreenshot = data
+        let resized = Self.resizedJPEGData(from: data) ?? data
+        pickedScreenshot = resized
         // Küçük gecikme — UI'nin uploading state'ini frame atlamadan
         // gösterebilmesi için. Sadece hissel feedback amaçlı.
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(200))
-            pickerState = .done(thumbnail: data)
+            pickerState = .done(thumbnail: resized)
         }
     }
 
@@ -424,10 +427,11 @@ final class HomeViewModel {
         pickerState = .uploading(progress: 0.3)
         do {
             if let data = try await item.loadTransferable(type: Data.self) {
+                let resized = Self.resizedJPEGData(from: data) ?? data
                 pickerState = .uploading(progress: 0.7)
                 try? await Task.sleep(for: .milliseconds(400))
-                pickedScreenshot = data
-                pickerState = .done(thumbnail: data)
+                pickedScreenshot = resized
+                pickerState = .done(thumbnail: resized)
             } else {
                 lastError = "fotoğraf yüklenemedi"
                 pickerState = .empty
@@ -437,6 +441,22 @@ final class HomeViewModel {
             lastError = "fotoğraf yüklenemedi. tekrar dene."
             pickerState = .empty
         }
+    }
+
+    private static func resizedJPEGData(from data: Data) -> Data? {
+        guard let image = UIImage(data: data) else { return nil }
+        let maxSide: CGFloat = 1568
+        let longest = max(image.size.width, image.size.height)
+        guard longest > 0 else { return nil }
+        let scale = min(1, maxSide / longest)
+        let targetSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
+        let resized = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
+        return resized.jpegData(compressionQuality: 0.7)
     }
 
     // MARK: - Manual generation (kullanıcı ekran görüntüsü atmaz, elle yazar)
@@ -530,6 +550,222 @@ final class HomeViewModel {
         }
     }
 
+    // MARK: - Unified OpenAI generation (v2)
+
+    private func runUnifiedGeneration(mode: Mode, imageData: Data) async {
+        await resyncPremiumIfNeeded()
+        var formFields: [String: String] = ["mode": mode.rawValue]
+        let trimmedExtra = extraContext.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedExtra.isEmpty {
+            formFields["extra_context"] = trimmedExtra
+        }
+        await streamUnifiedMultipart(mode: mode, imageData: imageData, formFields: formFields)
+    }
+
+    private func runUnifiedManualGeneration(mode: Mode) async {
+        await resyncPremiumIfNeeded()
+        let json: String
+        do {
+            json = try buildManualInputJSON(mode: mode)
+        } catch {
+            lastError = "bir şeyler ters gitti. tekrar dene."
+            generationPhase = .failed
+            return
+        }
+        var formFields: [String: String] = [
+            "mode": mode.rawValue,
+            "manual_input": json,
+        ]
+        let trimmedExtra = extraContext.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedExtra.isEmpty {
+            formFields["extra_context"] = trimmedExtra
+        }
+        await streamUnifiedMultipart(mode: mode, imageData: nil, formFields: formFields)
+    }
+
+    private func runUnifiedTonlaGeneration() async {
+        await resyncPremiumIfNeeded()
+        streamingObservation = ""
+        streamingReplies = [:]
+        conversationId = nil
+        generationPhase = .parsing
+
+        struct Body: Encodable {
+            let mode: String
+            let draft: String
+            let tone: String
+            let context_message: String?
+        }
+        let trimmedDraft = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedContext = contextText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let body = Body(
+            mode: Mode.tonla.rawValue,
+            draft: trimmedDraft,
+            tone: selectedTone?.rawValue ?? Tone.esprili.rawValue,
+            context_message: trimmedContext.isEmpty ? nil : trimmedContext
+        )
+        await consumeGenerationEvents(
+            mode: .tonla,
+            events: APIClient.shared.invokeStream(.generate, body: body)
+        )
+    }
+
+    private func resyncPremiumIfNeeded() async {
+        if SubscriptionManager.shared.isActive {
+            _ = await SubscriptionManager.shared.resyncCurrentSupabaseUser()
+        }
+    }
+
+    private func streamUnifiedMultipart(
+        mode: Mode,
+        imageData: Data?,
+        formFields: [String: String]
+    ) async {
+        streamingObservation = ""
+        streamingReplies = [:]
+        conversationId = nil
+        generationPhase = .parsing
+
+        await consumeGenerationEvents(
+            mode: mode,
+            events: APIClient.shared.invokeMultipartStream(
+                .generate,
+                imageData: imageData,
+                imageMimeType: "image/jpeg",
+                formFields: formFields
+            )
+        )
+    }
+
+    private func consumeGenerationEvents(
+        mode: Mode,
+        events: AsyncThrowingStream<SSEEvent, Error>
+    ) async {
+        var observation = ""
+        do {
+            for try await event in events {
+                try Task.checkCancellation()
+                switch event {
+                case .parseSummary:
+                    if generationPhase == .parsing { generationPhase = .streaming }
+                case .observation(let text):
+                    observation = text
+                    streamingObservation = text
+                    if generationPhase == .parsing { generationPhase = .streaming }
+                case .reply(let index, let tone, let text):
+                    streamingReplies[index] = ReplyOption(index: index, tone: tone, text: text)
+                    if generationPhase == .parsing { generationPhase = .streaming }
+                    if streamingReplies.count == 3 { generationPhase = .finishing }
+                case .done(_, let id, let remaining, let remainingRefines, let isPrem):
+                    conversationId = id
+                    remainingToday = remaining
+                    remainingRefinesToday = remainingRefines
+                    serverIsPremium = isPrem
+                case .unknown:
+                    continue
+                case .error(let msg):
+                    if (msg.trLower.contains("free_tier")
+                        || msg.contains("402")
+                        || msg.trLower.contains("limit")
+                        || msg.trLower.contains("doldu")) {
+                        if SubscriptionManager.shared.isActive {
+                            lastError = "premium aktif ama sunucu senkronu bekliyor. birkaç saniye sonra tekrar dene."
+                            generationPhase = .failed
+                            return
+                        }
+                        paywallTrigger = .dailyLimit
+                        stage = .home
+                        return
+                    }
+                    lastError = msg.isEmpty ? "bir şeyler ters gitti. tekrar dene." : msg
+                    generationPhase = .failed
+                    return
+                }
+            }
+
+            let finalReplies = (0..<3).compactMap { streamingReplies[$0] }
+            guard finalReplies.count == 3 else {
+                lastError = "üretim yarıda kaldı. tekrar dene."
+                generationPhase = .failed
+                SentrySDK.capture(message: "SSE drop unified: \(finalReplies.count)/3 reply, mode=\(mode.rawValue)")
+                return
+            }
+
+            generationPhase = .idle
+            stage = .result(GenerationResult(
+                observation: observation,
+                replies: finalReplies,
+                conversationId: conversationId,
+                mode: mode
+            ))
+            await loadHistory()
+            ReviewTrigger.onGenerationCompleted(totalCount: history.count)
+        } catch {
+            if Task.isCancelled { return }
+            if isFreeTierError(error) {
+                if SubscriptionManager.shared.isActive {
+                    lastError = "premium aktif ama sunucu senkronu bekliyor. birkaç saniye sonra tekrar dene."
+                    generationPhase = .failed
+                    return
+                }
+                paywallTrigger = .dailyLimit
+                stage = .home
+                return
+            }
+            lastError = "bağlantı hatası. tekrar dene."
+            generationPhase = .failed
+        }
+    }
+
+    func refineReply(index: Int, tone: Tone) async {
+        guard case .result(var result) = stage,
+              let conversationId = result.conversationId else { return }
+        isRefining = true
+        defer { isRefining = false }
+
+        struct Body: Encodable {
+            let conversation_id: String
+            let reply_index: Int
+            let tone: String
+        }
+        struct Response: Decodable {
+            let reply: ReplyDTO
+            let remaining_refines_today: Int?
+            let is_premium: Bool
+
+            struct ReplyDTO: Decodable {
+                let index: Int
+                let tone: String
+                let text: String
+            }
+        }
+
+        do {
+            let response: Response = try await APIClient.shared.invokeJSON(
+                .refineReply,
+                body: Body(conversation_id: conversationId, reply_index: index, tone: tone.rawValue),
+                as: Response.self
+            )
+            let updated = ReplyOption(
+                index: response.reply.index,
+                tone: response.reply.tone,
+                text: response.reply.text
+            )
+            result.replies = result.replies.map { $0.index == index ? updated : $0 }
+            remainingRefinesToday = response.remaining_refines_today
+            serverIsPremium = response.is_premium
+            withAnimation(AppAnimation.standard) {
+                stage = .result(result)
+            }
+        } catch {
+            if isFreeTierError(error) {
+                paywallTrigger = .dailyLimit
+            } else {
+                lastError = "tonlama olmadı. tekrar dene."
+            }
+        }
+    }
+
     /// runRealGeneration + runManualGeneration ortak gövdesi.
     /// imageData nil ise manuel akış (form fields'ta manual_input olmalı).
     private func runGenerationFromMultipart(
@@ -585,6 +821,8 @@ final class HomeViewModel {
             for try await event in APIClient.shared.invokeStream(.generateReplies, body: body) {
                 try Task.checkCancellation()
                 switch event {
+                case .parseSummary:
+                    break
                 case .observation(let text):
                     observation = text
                     streamingObservation = text
@@ -594,8 +832,9 @@ final class HomeViewModel {
                     streamingReplies[index] = r
                     if generationPhase == .parsing { generationPhase = .streaming }
                     if streamingReplies.count == 3 { generationPhase = .finishing }
-                case .done(_, _, let remaining, let isPrem):
+                case .done(_, _, let remaining, let remainingRefines, let isPrem):
                     self.remainingToday = remaining
+                    self.remainingRefinesToday = remainingRefines
                     self.serverIsPremium = isPrem
                     break
                 case .unknown:
@@ -763,6 +1002,8 @@ final class HomeViewModel {
             for try await event in APIClient.shared.invokeStream(.generateReplies, body: body) {
                 try Task.checkCancellation()
                 switch event {
+                case .parseSummary:
+                    break
                 case .observation(let text):
                     observation = text
                     streamingObservation = text
@@ -771,8 +1012,9 @@ final class HomeViewModel {
                     streamingReplies[index] = ReplyOption(index: index, tone: tone, text: text)
                     if generationPhase == .parsing { generationPhase = .streaming }
                     if streamingReplies.count == 3 { generationPhase = .finishing }
-                case .done(_, _, let remaining, let isPrem):
+                case .done(_, _, let remaining, let remainingRefines, let isPrem):
                     self.remainingToday = remaining
+                    self.remainingRefinesToday = remainingRefines
                     self.serverIsPremium = isPrem
                 case .unknown:
                     continue

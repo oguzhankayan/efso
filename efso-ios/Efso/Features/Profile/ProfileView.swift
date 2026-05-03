@@ -3,6 +3,7 @@ import SafariServices
 import StoreKit
 import UIKit
 import UserNotifications
+import os
 
 /// Refined-y2k profile / ayarlar. Arketip hero card (tappable) + 3 grouped
 /// settings sections (iOS Settings familiar) + delete account + version footer.
@@ -178,6 +179,7 @@ struct ProfileView: View {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 13))
                             .foregroundColor(AppColor.text40)
+                            .accessibilityHidden(true)
                     }
                     .padding(20)
 
@@ -237,7 +239,7 @@ struct ProfileView: View {
                 Task { if let ws = windowScene { try? await AppStore.showManageSubscriptions(in: ws) } }
             }
             .background(settingsCardBg)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous))
         } else {
             Button {
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -247,6 +249,7 @@ struct ProfileView: View {
                     Image(systemName: "lock")
                         .font(.system(size: 16))
                         .foregroundColor(AppColor.accent)
+                        .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("premium'a geç")
                             .font(AppFont.body(14, weight: .semibold))
@@ -259,13 +262,14 @@ struct ProfileView: View {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(AppColor.accent)
+                        .accessibilityHidden(true)
                 }
                 .padding(16)
                 .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                         .fill(AppColor.bg1)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                                 .strokeBorder(AppColor.accent.opacity(0.45), lineWidth: 1.2)
                         )
                 )
@@ -344,15 +348,15 @@ struct ProfileView: View {
                 content()
             }
             .background(settingsCardBg)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous))
         }
     }
 
     private var settingsCardBg: some View {
-        RoundedRectangle(cornerRadius: 14, style: .continuous)
+        RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
             .fill(AppColor.bg1)
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                     .strokeBorder(AppColor.text10, lineWidth: 1)
             )
     }
@@ -382,6 +386,7 @@ struct ProfileView: View {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12))
                         .foregroundColor(AppColor.text40)
+                        .accessibilityHidden(true)
                 } else if trailing == nil {
                     Text("›").foregroundColor(AppColor.text40)
                 }
@@ -408,6 +413,7 @@ struct ProfileView: View {
                     Image(systemName: "doc.text")
                         .font(.system(size: 12))
                         .foregroundColor(AppColor.text40)
+                        .accessibilityHidden(true)
                 }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 14)
@@ -430,6 +436,7 @@ struct ProfileView: View {
                     Image(systemName: "envelope")
                         .font(.system(size: 12))
                         .foregroundColor(AppColor.text40)
+                        .accessibilityHidden(true)
                 }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 14)
@@ -456,7 +463,7 @@ struct ProfileView: View {
                 .padding(.horizontal, 18)
                 .padding(.vertical, 14)
                 .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: AppRadius.section, style: .continuous)
                         .strokeBorder(AppColor.danger.opacity(0.4), lineWidth: 1)
                 )
             }
@@ -501,7 +508,7 @@ struct ProfileView: View {
         do {
             try await vm.deleteAccount()
         } catch {
-            // Hesap silme hatası — teknik detay kullanıcıya gösterilmez
+            Logger(subsystem: "com.efso.app", category: "Profile").error("hesap silinemedi: \(error.localizedDescription)")
             deleteError = "bir şeyler ters gitti. tekrar dene."
         }
     }
