@@ -256,8 +256,8 @@ struct HomeView: View {
                     }
                     .frame(width: 36, height: 36)
 
-                    if let arch = vm.archetype {
-                        Text(arch.iconKey)
+                    if vm.archetype != nil {
+                        Text(archetypeShortLabel)
                             .font(AppFont.mono(10))
                             .tracking(0.12 * 10)
                             .foregroundColor(AppColor.text40)
