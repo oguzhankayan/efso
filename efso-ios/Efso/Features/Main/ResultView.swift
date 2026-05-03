@@ -9,7 +9,6 @@ struct ResultView: View {
     @State private var copiedIndex: Int? = nil
     @State private var feedbackGiven: Bool? = nil
     @State private var safeAreaTopInset: CGFloat = 59
-    @State private var observationVisible = false
     @State private var visibleCardCount = 0
 
     var body: some View {
@@ -58,59 +57,35 @@ struct ResultView: View {
 
     private var contentScroll: some View {
         ScrollView(showsIndicators: false) {
-            VStack(spacing: 0) {
-                if !observationText.isEmpty {
-                    AssistantObservationCard(text: observationText, fontSize: 19)
-                        .padding(.horizontal, 24)
-                        .padding(.top, 14)
-                        .opacity(observationVisible ? 1 : 0)
-                        .offset(y: observationVisible ? 0 : -8)
+            VStack(spacing: 12) {
+                ForEach(Array(result.replies.enumerated()), id: \.element.id) { idx, reply in
+                    ReplyCard(
+                        toneAngle: reply.toneLabel,
+                        text: reply.text,
+                        isCopied: copiedIndex == reply.index,
+                        onCopy: { copy(reply) }
+                    )
+                    .opacity(idx < visibleCardCount ? 1 : 0)
+                    .offset(y: idx < visibleCardCount ? 0 : 16)
                 }
-
-                VStack(spacing: 12) {
-                    ForEach(Array(result.replies.enumerated()), id: \.element.id) { idx, reply in
-                        ReplyCard(
-                            toneAngle: reply.toneLabel,
-                            text: reply.text,
-                            isCopied: copiedIndex == reply.index,
-                            onCopy: { copy(reply) }
-                        )
-                        .opacity(idx < visibleCardCount ? 1 : 0)
-                        .offset(y: idx < visibleCardCount ? 0 : 16)
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
-                .padding(.bottom, 12)
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 12)
         }
         .onAppear { staggerReveal() }
     }
 
     private func staggerReveal() {
-        let hasObservation = !observationText.isEmpty
-        let obsDelay: Duration = .milliseconds(120)
-        let cardBaseDelay: Duration = hasObservation ? .milliseconds(400) : .milliseconds(120)
-
         Task {
-            if hasObservation {
-                try? await Task.sleep(for: obsDelay)
-                withAnimation(.easeOut(duration: 0.35)) {
-                    observationVisible = true
-                }
-            }
             for i in 0..<result.replies.count {
                 let stagger: Duration = .milliseconds(i * 100)
-                try? await Task.sleep(for: i == 0 ? cardBaseDelay : stagger)
+                try? await Task.sleep(for: i == 0 ? .milliseconds(120) : stagger)
                 withAnimation(AppAnimation.standard) {
                     visibleCardCount = i + 1
                 }
             }
         }
-    }
-
-    private var observationText: String {
-        result.observation.trimmingCharacters(in: .whitespacesAndNewlines).trLower
     }
 
     private var toneLabel: String {

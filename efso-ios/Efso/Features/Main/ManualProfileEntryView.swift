@@ -36,6 +36,8 @@ struct ManualProfileEntryView: View {
         }
     }
 
+    @State private var safeAreaTopInset: CGFloat = 59
+
     private var topBar: some View {
         HStack {
             Button { vm.backToHome() } label: {
@@ -44,7 +46,7 @@ struct ManualProfileEntryView: View {
                     .tracking(0.10 * 12)
                     .foregroundColor(AppColor.text60)
                     .frame(height: 44)
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, 4)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("iptal")
@@ -52,6 +54,16 @@ struct ManualProfileEntryView: View {
             EfsoTag("profil bilgisi", color: AppColor.text40)
             Spacer()
             Color.clear.frame(width: 60, height: 44)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, safeAreaTopInset)
+        .padding(.bottom, 4)
+        .task {
+            if let scene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene }).first,
+               let inset = scene.windows.first?.safeAreaInsets.top, inset > 0 {
+                safeAreaTopInset = inset
+            }
         }
     }
 

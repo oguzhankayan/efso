@@ -14,6 +14,7 @@ struct ScreenshotPickerView: View {
     @State private var extraContextOpen: Bool = false
     @State private var cachedThumbnail: UIImage?
     @State private var manualTapTrigger: Bool = false
+    @State private var safeAreaTopInset: CGFloat = 59
     @FocusState private var extraContextFocused: Bool
 
 
@@ -47,6 +48,11 @@ struct ScreenshotPickerView: View {
         }
         .sensoryFeedback(.impact(weight: .light), trigger: manualTapTrigger)
         .onAppear {
+            if let scene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene }).first,
+               let inset = scene.windows.first?.safeAreaInsets.top, inset > 0 {
+                safeAreaTopInset = inset
+            }
             refreshClipboard()
             if let data = vm.pickedScreenshot { cachedThumbnail = UIImage(data: data) }
         }
@@ -70,7 +76,7 @@ struct ScreenshotPickerView: View {
                     .tracking(0.10 * 12)
                     .foregroundColor(AppColor.text60)
                     .frame(height: 44)
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, 4)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("geri")
@@ -81,12 +87,13 @@ struct ScreenshotPickerView: View {
             if !subs.isActive {
                 quotaChip
                     .frame(minWidth: 60, alignment: .trailing)
-                    .padding(.trailing, 14)
             } else {
                 Color.clear.frame(width: 60, height: 44)
             }
         }
-        .padding(.top, 6)
+        .padding(.horizontal, 20)
+        .padding(.top, safeAreaTopInset)
+        .padding(.bottom, 4)
     }
 
     private var modeTitle: String {
@@ -481,35 +488,85 @@ struct ScreenshotPickerView: View {
                 }
             }
 
-            VStack(spacing: 6) {
-                ForEach(vm.manualMessages) { msg in
-                    HStack {
-                        if msg.sender == .user { Spacer(minLength: 48) }
-                        Text(msg.text)
-                            .font(AppFont.body(13.5))
-                            .foregroundColor(msg.sender == .user ? AppColor.bg0 : AppColor.ink)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .fill(msg.sender == .user ? AppColor.ink : AppColor.bg2)
-                            )
-                        if msg.sender == .other { Spacer(minLength: 48) }
-                    }
-                }
+            if mode == .acilis {
+                manualProfileSummary
+            } else {
+                manualChatSummary
             }
-            .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(AppColor.bg1)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .strokeBorder(AppColor.holographic, lineWidth: 1.2)
-                    )
-            )
 
             extraContextDisclosure
         }
+    }
+
+    private var manualProfileSummary: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if !vm.manualHandle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                profileRow(label: "isim", value: vm.manualHandle)
+            }
+            if !vm.manualBio.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                profileRow(label: "bio", value: vm.manualBio)
+            }
+            let posts = vm.manualPosts.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            if !posts.isEmpty {
+                profileRow(label: "sevdikleri", value: posts.joined(separator: " · "))
+            }
+            let photos = vm.manualPhotoDescriptions.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            if !photos.isEmpty {
+                profileRow(label: "fotoğraflar", value: photos.joined(separator: " · "))
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(AppColor.bg1)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(AppColor.holographic, lineWidth: 1.2)
+                )
+        )
+    }
+
+    private func profileRow(label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(AppFont.mono(10))
+                .tracking(0.14 * 10)
+                .foregroundColor(AppColor.text40)
+                .textCase(.uppercase)
+            Text(value)
+                .font(AppFont.body(13.5))
+                .foregroundColor(AppColor.ink)
+                .lineLimit(3)
+        }
+    }
+
+    private var manualChatSummary: some View {
+        VStack(spacing: 6) {
+            ForEach(vm.manualMessages) { msg in
+                HStack {
+                    if msg.sender == .user { Spacer(minLength: 48) }
+                    Text(msg.text)
+                        .font(AppFont.body(13.5))
+                        .foregroundColor(msg.sender == .user ? AppColor.bg0 : AppColor.ink)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(msg.sender == .user ? AppColor.ink : AppColor.bg2)
+                        )
+                    if msg.sender == .other { Spacer(minLength: 48) }
+                }
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(AppColor.bg1)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(AppColor.holographic, lineWidth: 1.2)
+                )
+        )
     }
 
     // MARK: - Helpers

@@ -94,10 +94,14 @@ sparse profil fallback (bio yok, prompt yok, sadece foto/handle var):
 - bir foto öğesini somutla yakala (mekân, obje, jest, hayvan, kitap).
   detayı içselleştir; "X foto" der gibi yazma — kahve fincanına
   dokunmuş gibi yaz, kahveden bahsetme.
-- foto da generic ise: profilin azlığını **dürüst** kullan;
-  yapay sıcaklık üretme.
-- hiçbir sinyal yoksa observation'da söyle, opener yine de üret
-  ama açık soruya dayan.
+- foto da generic ise: profilin azlığını observation'da dürüstçe belirt.
+  KRİTİK: observation'a talimat cümlesi YAZMA. talimat ≠ gözlem.
+  ✓ "sadece isim ve bir emoji. gizemli mi, tembel mi, bilemiyorsun. ama soru sorarak öğrenirsin."
+  ✓ "profil boş ama handle ilginç. buradan gir."
+  ✗ "açık soruya dayan, ama yapay sıcaklık üretme" (BU TALİMAT, GÖZLEM DEĞİL)
+  ✗ "detay yok, şunu yap" tipi meta-yönlendirme yasak.
+- sinyal azsa opener'lar açık soru ağırlıklı olsun. kapalı yargı yerine
+  merak uyandıran, cevap vermesi kolay sorular tercih et.
 
 archetype hint (varsa system L4'ten gelir, observation'da archetype
 ismini KULLANMA, sadece sesi taşı):

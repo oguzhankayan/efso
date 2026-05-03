@@ -9,9 +9,6 @@ struct GenerationView: View {
     let mode: Mode
 
     @State private var firstReplyHapticFired = false
-    @State private var typewriterDone = false
-    @State private var revealedCharCount = 0
-    @State private var typewriterTask: Task<Void, Never>?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -45,9 +42,6 @@ struct GenerationView: View {
         .onChange(of: vm.generationPhase) { _, phase in
             if phase == .parsing {
                 firstReplyHapticFired = false
-                typewriterDone = false
-                revealedCharCount = 0
-                typewriterTask?.cancel()
             }
         }
         .onAppear { readSafeArea() }
@@ -61,7 +55,7 @@ struct GenerationView: View {
                     .tracking(0.10 * 12)
                     .foregroundColor(AppColor.text60)
                     .frame(height: 44)
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, 4)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("iptal")
@@ -70,7 +64,9 @@ struct GenerationView: View {
             Spacer()
             Color.clear.frame(width: 60, height: 44)
         }
+        .padding(.horizontal, 20)
         .padding(.top, safeAreaTopInset)
+        .padding(.bottom, 4)
     }
 
     @State private var safeAreaTopInset: CGFloat = 59
@@ -141,33 +137,10 @@ struct GenerationView: View {
 
     // MARK: - Streaming content
 
-    private var revealedObservation: String {
-        let full = vm.streamingObservation
-        if typewriterDone || revealedCharCount >= full.count {
-            return full
-        }
-        return String(full.prefix(revealedCharCount))
-    }
-
     private var streamingContent: some View {
         ScrollView(showsIndicators: false) {
-            VStack(spacing: 18) {
-                AssistantObservationCard(text: revealedObservation, fontSize: 18)
-                replyStack
-            }
-            .padding(.bottom, 24)
-        }
-        .onChange(of: vm.streamingObservation) { _, newText in
-            guard !newText.isEmpty && !typewriterDone else { return }
-            typewriterTask?.cancel()
-            typewriterTask = Task {
-                for i in 0..<newText.count {
-                    guard !Task.isCancelled else { return }
-                    revealedCharCount = i + 1
-                    try? await Task.sleep(for: .milliseconds(18))
-                }
-                typewriterDone = true
-            }
+            replyStack
+                .padding(.bottom, 24)
         }
     }
 
