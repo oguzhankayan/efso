@@ -33,6 +33,7 @@
 		32C6DE632AA540745C8F29B8 /* UserDefaultsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36FF7B3A22D7EA53074408AC /* UserDefaultsKeys.swift */; };
 		337BF6604F43DFFDFA7869CE /* EntitlementGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E3842A0A35B333EA86E9BE0 /* EntitlementGate.swift */; };
 		38D0834ED08226970ECE607F /* ManualChatComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA6361F999CCFE40A94A437 /* ManualChatComposerView.swift */; };
+		3CA6EB4C8A0F5249F8F4DE00 /* EfsoProducts.storekit in Resources */ = {isa = PBXBuildFile; fileRef = D7FABCD3424069E0FADB65EC /* EfsoProducts.storekit */; };
 		3D99910E1598E8D7C6D382D1 /* DesignSystemCatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADB76B6609186F0A1EDEB482 /* DesignSystemCatalogView.swift */; };
 		3DFC18109E7B6058D876E93F /* ValueIntroView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBE49F037BB3B5C4A4A884DD /* ValueIntroView.swift */; };
 		448AB5301A6BBDBF4F159EFC /* GenerationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96FD65E627B07AA90C06E0E0 /* GenerationView.swift */; };
@@ -183,6 +184,7 @@
 		CBAC313C5A245B85FBA0B4FC /* ScreenshotPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotPickerView.swift; sourceTree = "<group>"; };
 		D1D5CD0E5F4B4CF1F156718A /* Logo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logo.swift; sourceTree = "<group>"; };
 		D7565DFA07F9E220F5AA9C9D /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		D7FABCD3424069E0FADB65EC /* EfsoProducts.storekit */ = {isa = PBXFileReference; includeInIndex = 1; name = EfsoProducts.storekit; path = EfsoProducts.storekit; sourceTree = "<group>"; };
 		D88ADEA86EE26466FCC32066 /* EfsoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EfsoApp.swift; sourceTree = "<group>"; };
 		D8E7A3E0A88549C5D3BA11C6 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
 		DBB1A5C7D8DEAFE8729ACCDE /* GicikTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GicikTests.swift; sourceTree = "<group>"; };
@@ -519,6 +521,7 @@
 				DD6D643D268D72BDC14FE288 /* Efso.Release.entitlements */,
 				6192F9DF05319557144BBD3D /* Info.plist */,
 				327E66B1A3E7495B3930EFF2 /* PrivacyInfo.xcprivacy */,
+				D7FABCD3424069E0FADB65EC /* EfsoProducts.storekit */,
 			);
 			path = Efso;
 			sourceTree = "<group>";
@@ -642,6 +645,7 @@
 				A326B731A68E210E7B8A5008 /* PrivacyInfo.xcprivacy in Resources */,
 				17C6F4C7AF45F30F702AA7DD /* SpaceGrotesk-VariableFont_wght.ttf in Resources */,
 				CB960FD7D23B7B989644E6AB /* calibration-questions.json in Resources */,
+				3CA6EB4C8A0F5249F8F4DE00 /* EfsoProducts.storekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
