@@ -110,6 +110,12 @@ final class SubscriptionManager: NSObject {
         do {
             let result = try await Purchases.shared.purchase(package: package)
             apply(customerInfo: result.customerInfo)
+            #if DEBUG
+            if !isActive && !result.userCancelled {
+                logger.info("RC purchase: Xcode env — forcing isActive=true")
+                isActive = true
+            }
+            #endif
             logger.info("RC purchase: success, isActive=\(self.isActive)")
             if isActive {
                 try? await Task.sleep(for: .seconds(4))
