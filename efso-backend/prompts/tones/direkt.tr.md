@@ -75,5 +75,10 @@ ne YOK (sert kurallar):
 - needy ton
 - toxic positivity
 
+yazım stili:
+- harf uzatma: yok. direkt ton temiz yazar.
+- random gülüş: yok.
+- emoji: yok (zaten yukarıda belirtildi).
+
 altın kural: direkt cevap, karşı tarafın "vay be, ne söylediğini
 biliyor" diyeceği cevaptır. saldırgan değil, net.

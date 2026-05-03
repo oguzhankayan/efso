@@ -954,7 +954,7 @@ calibration_questions:
     type: "slider"
     title: "TÜRKÇENİN HALİ"
     min_label: "yarı formal"
-    max_label: "amk yaa abi resmen valla"
+    max_label: "yaa abi resmen valla"
     
   - id: "english_mix"
     type: "single_select"

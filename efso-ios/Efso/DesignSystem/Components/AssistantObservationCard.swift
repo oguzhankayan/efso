@@ -13,19 +13,13 @@ struct AssistantObservationCard: View {
             if showLabel {
                 EfsoTag("efso", color: AppColor.text60, dot: true, dotColor: AppColor.pop)
             }
-            HStack(spacing: 0) {
-                Rectangle()
-                    .fill(AppColor.accent)
-                    .frame(width: 2)
-                Text(text.trLower)
-                    .font(AppFont.displayItalic(fontSize, weight: .regular))
-                    .foregroundColor(AppColor.ink)
-                    .lineSpacing(fontSize * 0.20)
-                    .tracking(-0.015 * fontSize)
-                    .padding(.leading, 12)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .accessibilityLabel("efso gözlemi: \(text)")
+            Text(text.trLower)
+                .font(AppFont.displayItalic(fontSize, weight: .regular))
+                .foregroundColor(AppColor.ink)
+                .lineSpacing(fontSize * 0.20)
+                .tracking(-0.015 * fontSize)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityLabel("efso gözlemi: \(text)")
         }
     }
 }

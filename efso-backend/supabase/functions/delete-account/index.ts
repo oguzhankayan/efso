@@ -40,7 +40,6 @@ Deno.serve(async (req: Request) => {
       "security_events",
       "subscription_state",
       "usage_daily",
-      "profiles",
     ];
     for (const t of tables) {
       const { error } = await serviceClient.from(t).delete().eq("user_id", userId);
@@ -48,7 +47,7 @@ Deno.serve(async (req: Request) => {
         console.error(`delete from ${t} failed`, error.message);
       }
     }
-    // profiles tablosunda PK = id, user_id değil
+    // profiles tablosunda PK = id, user_id kolonundan değil id'den silinir
     await serviceClient.from("profiles").delete().eq("id", userId);
 
     // ─── 3. auth.users sil ───

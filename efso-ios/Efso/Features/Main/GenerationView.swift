@@ -10,6 +10,8 @@ struct GenerationView: View {
 
     @State private var firstReplyHapticFired = false
     @State private var typewriterDone = false
+    @State private var revealedCharCount = 0
+    @State private var typewriterTask: Task<Void, Never>?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -44,8 +46,11 @@ struct GenerationView: View {
             if phase == .parsing {
                 firstReplyHapticFired = false
                 typewriterDone = false
+                revealedCharCount = 0
+                typewriterTask?.cancel()
             }
         }
+        .onAppear { readSafeArea() }
     }
 
     private var topBar: some View {
@@ -65,7 +70,17 @@ struct GenerationView: View {
             Spacer()
             Color.clear.frame(width: 60, height: 44)
         }
-        .padding(.top, 4)
+        .padding(.top, safeAreaTopInset)
+    }
+
+    @State private var safeAreaTopInset: CGFloat = 59
+
+    private func readSafeArea() {
+        if let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene }).first,
+           let inset = scene.keyWindow?.safeAreaInsets.top, inset > 0 {
+            safeAreaTopInset = inset
+        }
     }
 
     private var toneLabel: String { vm.selectedTone?.label.trLower ?? "üç ton" }
@@ -76,20 +91,15 @@ struct GenerationView: View {
         VStack(spacing: 0) {
             Spacer()
             chromeRing
-                .frame(width: 110, height: 110)
+                .frame(width: 100, height: 100)
             Text("düşünüyor.")
-                .font(AppFont.displayItalic(28, weight: .regular))
-                .tracking(-0.025 * 28)
+                .font(AppFont.displayItalic(26, weight: .regular))
+                .tracking(-0.025 * 26)
                 .foregroundColor(AppColor.ink)
-                .padding(.top, 32)
-            Text("~3 saniye")
-                .font(AppFont.mono(11))
-                .tracking(0.14 * 11)
-                .foregroundColor(AppColor.text60)
-                .padding(.top, 4)
+                .padding(.top, 28)
             Spacer()
-            checklist
-                .padding(.bottom, 20)
+            phaseLabel
+                .padding(.bottom, 32)
         }
     }
 
@@ -109,57 +119,55 @@ struct GenerationView: View {
         }
     }
 
-    private struct Step { let label: String; let done: Bool; let active: Bool }
-
-    private var steps: [Step] {
-        let p = vm.generationPhase
+    private var currentPhaseText: String {
         let isTextOnly = mode == .tonla
-        return [
-            Step(label: isTextOnly ? "metin analiz ediliyor" : "görsel okunuyor", done: p != .parsing, active: false),
-            Step(label: "bağlam çıkarılıyor", done: p != .parsing, active: false),
-            Step(label: "arketip eşleniyor", done: p == .streaming || p == .finishing, active: false),
-            Step(label: "üç ton hazırlanıyor", done: p == .finishing, active: p == .streaming),
-            Step(label: "ince ayar", done: false, active: p == .finishing),
-        ]
+        switch vm.generationPhase {
+        case .parsing:   return isTextOnly ? "metin okunuyor" : "görsel okunuyor"
+        case .streaming: return "cevaplar yazılıyor"
+        case .finishing: return "ince ayar"
+        default:         return ""
+        }
     }
 
-    private var checklist: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(steps.enumerated()), id: \.offset) { idx, s in
-                HStack(spacing: 12) {
-                    Circle()
-                        .fill(s.done ? AppColor.accent : (s.active ? AppColor.pop : AppColor.bg2))
-                        .frame(width: 8, height: 8)
-                        .shadow(color: s.active ? AppColor.pop.opacity(0.6) : .clear, radius: 6)
-                    Text(s.label)
-                        .font(AppFont.body(13.5))
-                        .foregroundColor(s.done ? AppColor.text40 : (s.active ? AppColor.ink : AppColor.text40))
-                        .strikethrough(s.done, color: AppColor.text20)
-                    Spacer()
-                    if s.done {
-                        Text("✓").font(AppFont.mono(12)).foregroundColor(AppColor.accent)
-                    }
-                }
-                .padding(.vertical, 10)
-                .accessibilityValue(s.done ? "tamamlandı" : (s.active ? "devam ediyor" : "bekliyor"))
-                .overlay(alignment: .bottom) {
-                    if idx < steps.count - 1 {
-                        Rectangle().fill(AppColor.text10).frame(height: 1)
-                    }
-                }
-            }
-        }
+    private var phaseLabel: some View {
+        Text(currentPhaseText)
+            .font(AppFont.mono(11))
+            .tracking(0.14 * 11)
+            .foregroundColor(AppColor.text40)
+            .textCase(.uppercase)
+            .animation(.easeInOut(duration: 0.3), value: currentPhaseText)
+            .contentTransition(.opacity)
     }
 
     // MARK: - Streaming content
 
+    private var revealedObservation: String {
+        let full = vm.streamingObservation
+        if typewriterDone || revealedCharCount >= full.count {
+            return full
+        }
+        return String(full.prefix(revealedCharCount))
+    }
+
     private var streamingContent: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 18) {
-                AssistantObservationCard(text: vm.streamingObservation, fontSize: 18)
+                AssistantObservationCard(text: revealedObservation, fontSize: 18)
                 replyStack
             }
             .padding(.bottom, 24)
+        }
+        .onChange(of: vm.streamingObservation) { _, newText in
+            guard !newText.isEmpty && !typewriterDone else { return }
+            typewriterTask?.cancel()
+            typewriterTask = Task {
+                for i in 0..<newText.count {
+                    guard !Task.isCancelled else { return }
+                    revealedCharCount = i + 1
+                    try? await Task.sleep(for: .milliseconds(18))
+                }
+                typewriterDone = true
+            }
         }
     }
 
@@ -170,8 +178,6 @@ struct GenerationView: View {
                     ReplyCard(
                         toneAngle: r.toneLabel,
                         text: r.text,
-                        isPrimary: idx == 0,
-                        isCopied: false,
                         onCopy: {
                             UIPasteboard.general.string = r.text
                             UINotificationFeedbackGenerator().notificationOccurred(.success)

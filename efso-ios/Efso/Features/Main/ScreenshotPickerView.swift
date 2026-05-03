@@ -10,13 +10,12 @@ struct ScreenshotPickerView: View {
     let mode: Mode
 
     @State private var subs = SubscriptionManager.shared
-    @State private var recents = RecentScreenshotsLoader()
     @State private var clipboardHasImage: Bool = false
     @State private var extraContextOpen: Bool = false
     @State private var cachedThumbnail: UIImage?
     @State private var manualTapTrigger: Bool = false
     @FocusState private var extraContextFocused: Bool
-    @Environment(\.openURL) private var openURL
+
 
     var body: some View {
         VStack(spacing: 0) {
@@ -48,7 +47,6 @@ struct ScreenshotPickerView: View {
         }
         .sensoryFeedback(.impact(weight: .light), trigger: manualTapTrigger)
         .onAppear {
-            recents.bootstrap()
             refreshClipboard()
             if let data = vm.pickedScreenshot { cachedThumbnail = UIImage(data: data) }
         }
@@ -162,8 +160,6 @@ struct ScreenshotPickerView: View {
             if clipboardHasImage {
                 pasteRow.transition(.opacity)
             }
-            recentsBlock
-                .padding(.top, 4)
         }
     }
 
@@ -199,7 +195,7 @@ struct ScreenshotPickerView: View {
                     .textCase(.uppercase)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 180)
+            .frame(height: 150)
             .background(
                 ZStack {
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -284,130 +280,6 @@ struct ScreenshotPickerView: View {
             )
         }
         .buttonStyle(.plain)
-    }
-
-    // MARK: - Recents
-
-    @ViewBuilder
-    private var recentsBlock: some View {
-        switch recents.state {
-        case .idle, .loading:
-            EmptyView()
-        case .needsPermission:
-            permissionPrompt
-        case .ready(let items):
-            recentsStrip(items: items)
-        case .denied:
-            deniedRecovery
-        case .empty:
-            EmptyView()
-        }
-    }
-
-    private var sectionLabel: some View {
-        EfsoTag("son ekran görüntülerin", color: AppColor.text40)
-    }
-
-    private var permissionPrompt: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionLabel
-            Button { recents.requestPermission() } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "photo.stack")
-                        .foregroundColor(AppColor.accent)
-                    Text("son ss'lerini buraya getir")
-                        .font(AppFont.body(14))
-                        .foregroundColor(AppColor.ink)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11))
-                        .foregroundColor(AppColor.text40)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(AppColor.bg1)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .strokeBorder(AppColor.accent.opacity(0.25), lineWidth: 1)
-                        )
-                )
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private var deniedRecovery: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionLabel
-            Button {
-                if let url = URL(string: UIApplication.openSettingsURLString) {
-                    openURL(url)
-                }
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "lock.open").foregroundColor(AppColor.text60)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("fotoğraf erişimi kapalı")
-                            .font(AppFont.body(13))
-                            .foregroundColor(AppColor.ink)
-                        Text("son ss'lerini görmek için iOS ayarlardan aç.")
-                            .font(AppFont.body(11))
-                            .foregroundColor(AppColor.text40)
-                    }
-                    Spacer()
-                    Image(systemName: "arrow.up.right")
-                        .foregroundColor(AppColor.text40)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(AppColor.bg1)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .strokeBorder(AppColor.text10, lineWidth: 1)
-                        )
-                )
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private func recentsStrip(items: [RecentScreenshotsLoader.Item]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionLabel
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(items) { item in
-                        Button {
-                            manualTapTrigger.toggle()
-                            Task {
-                                if let data = await recents.loadFullData(for: item.asset) {
-                                    vm.acceptScreenshotData(data)
-                                }
-                            }
-                        } label: {
-                            Image(uiImage: item.thumbnail)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 88, height: 124)
-                                .clipped()
-                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .strokeBorder(AppColor.text10, lineWidth: 1)
-                                )
-                                .accessibilityLabel("son ekran görüntüsü, seçmek için tıkla")
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-            .scrollClipDisabled()
-        }
     }
 
     // MARK: - Uploading + done
@@ -558,7 +430,7 @@ struct ScreenshotPickerView: View {
     private var tonePicker: some View {
         TonePicker(
             tones: Tone.allLabels,
-            selected: vm.selectedTone?.label.trLower ?? "esprili",
+            selected: vm.selectedTone?.label.trLower ?? "",
             onSelect: { label in
                 if let tone = Tone.allCases.first(where: { $0.label.trLower == label }) {
                     vm.selectedTone = tone
@@ -649,8 +521,11 @@ struct ScreenshotPickerView: View {
     private func handlePaste() {
         guard let img = UIPasteboard.general.image,
               let data = img.jpegData(compressionQuality: 0.92)
-        else { return }
-        manualTapTrigger.toggle()
+        else {
+            vm.lastError = "panodaki görsel okunamadı"
+            return
+        }
+        UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
         vm.acceptScreenshotData(data)
     }
 

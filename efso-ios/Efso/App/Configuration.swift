@@ -23,8 +23,7 @@ enum Configuration {
 
     static let revenueCatAPIKey: String = infoString("REVENUECAT_API_KEY") ?? ""
     static let posthogAPIKey: String = infoString("POSTHOG_API_KEY") ?? ""
-    static let posthogHost: String = infoString("POSTHOG_HOST") ?? "https://eu.posthog.com"
-    static let mixpanelToken: String = infoString("MIXPANEL_TOKEN") ?? ""
+    static let posthogHost: String = "https://us.i.posthog.com"
     static let sentryDSN: String = infoString("SENTRY_DSN") ?? ""
 
     // MARK: - Build info

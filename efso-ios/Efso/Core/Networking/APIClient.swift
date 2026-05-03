@@ -249,7 +249,7 @@ enum SSEEvent: Decodable, Sendable {
         case "done":
             let ms = (try? c.decode(Int.self, forKey: .durationMs)) ?? 0
             let id = (try? c.decode(String.self, forKey: .conversationId)) ?? ""
-            let remaining = try? c.decodeIfPresent(Int.self, forKey: .remainingToday)
+            let remaining = (try? c.decodeIfPresent(Int.self, forKey: .remainingToday)) ?? nil
             let prem = (try? c.decodeIfPresent(Bool.self, forKey: .isPremium)) ?? false
             self = .done(durationMs: ms, conversationId: id, remainingToday: remaining, isPremium: prem)
         case "error":

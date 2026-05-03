@@ -79,6 +79,11 @@ ne YOK (sert kurallar):
 - toxic positivity
 - randevu teklifi → davet modunun işi
 
+yazım stili:
+- harf uzatma: yok. gizemli ton az ve net yazar.
+- random gülüş: yok.
+- emoji: yok (zaten yukarıda belirtildi).
+
 altın kural: gizemli cevap, karşı tarafın "bir dakika, ne demek
 istedi?" diye düşünüp gülümseyeceği cevaptır. kafasını karıştıran
 değil, merakını çeken.

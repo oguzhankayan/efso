@@ -88,7 +88,10 @@ struct DemographicView: View {
 
     private func genderRow(_ g: Gender) -> some View {
         let on = vm.demographic.gender == g
-        return Button { vm.demographic.gender = g } label: {
+        return Button {
+            vm.demographic.gender = g
+            UISelectionFeedbackGenerator().selectionChanged()
+        } label: {
             HStack {
                 Text(g.label.trLower)
                     .font(AppFont.body(15))
@@ -114,9 +117,20 @@ struct DemographicView: View {
         .accessibilityValue(on ? "seçili" : "")
     }
 
+    private func intentHaptic(_ intent: Intent) {
+        switch intent {
+        case .relationship: UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        case .casual, .fun: UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        case .taken:        UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+        }
+    }
+
     private func intentCard(_ intent: Intent) -> some View {
         let on = vm.demographic.intent == intent
-        return Button { vm.demographic.intent = intent } label: {
+        return Button {
+            vm.demographic.intent = intent
+            intentHaptic(intent)
+        } label: {
             HStack(spacing: 12) {
                 Text(intent.emoji).font(.system(size: 18))
                 Text(intent.label.trLower)
@@ -136,7 +150,6 @@ struct DemographicView: View {
             )
         }
         .accessibilityValue(on ? "seçili" : "")
-        .sensoryFeedback(.selection, trigger: vm.demographic.intent)
     }
 }
 

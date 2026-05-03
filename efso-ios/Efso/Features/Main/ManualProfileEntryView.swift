@@ -134,7 +134,7 @@ struct ManualProfileEntryView: View {
                 }
             }
             ForEach(vm.manualPhotoDescriptions.indices, id: \.self) { i in
-                indexedRow(binding: $vm.manualPhotoDescriptions[i], placeholder: "tinder, 4 gündür konuşma", field: .photo(i)) {
+                indexedRow(binding: $vm.manualPhotoDescriptions[i], placeholder: "kahveci, gülümsüyor, dağ fotosu", field: .photo(i)) {
                     vm.manualPhotoDescriptions.remove(at: i)
                 }
             }

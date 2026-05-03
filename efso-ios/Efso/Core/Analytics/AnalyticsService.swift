@@ -1,23 +1,18 @@
 import Foundation
 import PostHog
-import Mixpanel
 
-/// Tek noktadan event log + identify. PostHog (feature flags + funnel) +
-/// Mixpanel (event log).
+/// Tek noktadan event log + identify. PostHog (feature flags + funnel).
 ///
-/// API key'ler boşsa SDK'lar HİÇ init edilmez — boş init PostHog/Mixpanel
-/// tarafında batch retry'ları başlatıyor ve simulator'da launch hang'ine
-/// sebep olabiliyor.
+/// API key boşsa SDK init edilmez — boş init PostHog tarafında batch
+/// retry'ları başlatıyor ve simulator'da launch hang'ine sebep olabiliyor.
 @MainActor
 final class AnalyticsService {
     static let shared = AnalyticsService()
     private init() {}
 
     private var posthogReady = false
-    private var mixpanelReady = false
 
     func bootstrap() {
-        // PostHog — sadece key varsa
         let phKey = Configuration.posthogAPIKey
         if !phKey.isEmpty {
             let phConfig = PostHogConfig(apiKey: phKey, host: Configuration.posthogHost)
@@ -25,40 +20,22 @@ final class AnalyticsService {
             PostHogSDK.shared.setup(phConfig)
             posthogReady = true
         }
-
-        // Mixpanel — sadece token varsa
-        let mpToken = Configuration.mixpanelToken
-        if !mpToken.isEmpty {
-            Mixpanel.initialize(token: mpToken, trackAutomaticEvents: false)
-            mixpanelReady = true
-        }
     }
 
     func identify(userID: UUID, archetype: String? = nil) {
+        guard posthogReady else { return }
         var props: [String: Any] = ["app_version": Configuration.appVersion]
         if let archetype { props["archetype"] = archetype }
-
-        if posthogReady {
-            PostHogSDK.shared.identify(userID.uuidString, userProperties: props)
-        }
-        if mixpanelReady {
-            Mixpanel.mainInstance().identify(distinctId: userID.uuidString)
-            Mixpanel.mainInstance().people.set(properties: props.mapValues { $0 as? MixpanelType ?? "" })
-        }
+        PostHogSDK.shared.identify(userID.uuidString, userProperties: props)
     }
 
     func track(_ event: AnalyticsEvent, properties: [String: Any] = [:]) {
-        if posthogReady {
-            PostHogSDK.shared.capture(event.rawValue, properties: properties)
-        }
-        if mixpanelReady {
-            let mpProps = properties.compactMapValues { $0 as? MixpanelType }
-            Mixpanel.mainInstance().track(event: event.rawValue, properties: mpProps)
-        }
+        guard posthogReady else { return }
+        PostHogSDK.shared.capture(event.rawValue, properties: properties)
     }
 
     func reset() {
-        if posthogReady { PostHogSDK.shared.reset() }
-        if mixpanelReady { Mixpanel.mainInstance().reset() }
+        guard posthogReady else { return }
+        PostHogSDK.shared.reset()
     }
 }

@@ -21,6 +21,7 @@ final class SubscriptionManager: NSObject {
     private let entitlementId = "premium"
     private let weeklyProductId = "efso_weekly"
     private let yearlyProductId = "efso_yearly"
+    private var rcConfigured = false
 
     private override init() { super.init() }
 
@@ -48,6 +49,7 @@ final class SubscriptionManager: NSObject {
 
         Purchases.logLevel = Configuration.isDebug ? .debug : .warn
         Purchases.configure(withAPIKey: key)
+        rcConfigured = true
         Purchases.shared.delegate = self
 
         Task {
@@ -59,17 +61,18 @@ final class SubscriptionManager: NSObject {
 
     /// Auth tamamlandığında user_id'yi RevenueCat'e bağla.
     func identify(userId: String) async {
-        guard !Configuration.revenueCatAPIKey.isEmpty else { return }
+        guard rcConfigured else { return }
         do {
             _ = try await Purchases.shared.logIn(userId)
             await refreshCustomerInfo()
         } catch {
-            lastError = error.localizedDescription
+            // RevenueCat identify hatası — kullanıcıya gösterilmez
+            lastError = "bağlantı hatası. tekrar dene."
         }
     }
 
     func signOut() async {
-        guard !Configuration.revenueCatAPIKey.isEmpty else { return }
+        guard rcConfigured else { return }
         _ = try? await Purchases.shared.logOut()
         isActive = false
     }
@@ -77,6 +80,7 @@ final class SubscriptionManager: NSObject {
     // MARK: - Offerings + purchase
 
     private func loadOfferings() async {
+        guard rcConfigured else { return }
         do {
             let offerings = try await Purchases.shared.offerings()
             guard let current = offerings.current else { return }
@@ -85,7 +89,8 @@ final class SubscriptionManager: NSObject {
             yearlyPackage = current.package(identifier: "$rc_annual")
                 ?? current.availablePackages.first { $0.storeProduct.productIdentifier == yearlyProductId }
         } catch {
-            lastError = "offerings: \(error.localizedDescription)"
+            // Offerings yükleme hatası — kullanıcıya teknik detay gösterme
+            lastError = "fiyat bilgisi alınamadı. tekrar dene."
         }
     }
 
@@ -114,7 +119,8 @@ final class SubscriptionManager: NSObject {
             if let rcError = error as? RevenueCat.ErrorCode, rcError == .purchaseCancelledError {
                 return false
             }
-            lastError = error.localizedDescription
+            // Satın alma hatası — teknik detay kullanıcıya gösterilmez
+            lastError = "ödeme tamamlanamadı. tekrar dene."
             return false
         }
     }
@@ -128,7 +134,8 @@ final class SubscriptionManager: NSObject {
             apply(customerInfo: info)
             return isActive
         } catch {
-            lastError = error.localizedDescription
+            // Restore hatası — teknik detay kullanıcıya gösterilmez
+            lastError = "geri yükleme başarısız. tekrar dene."
             return false
         }
     }
@@ -136,11 +143,13 @@ final class SubscriptionManager: NSObject {
     // MARK: - Internal
 
     private func refreshCustomerInfo() async {
+        guard rcConfigured else { return }
         do {
             let info = try await Purchases.shared.customerInfo()
             apply(customerInfo: info)
         } catch {
-            lastError = error.localizedDescription
+            // CustomerInfo refresh hatası — kullanıcıya gösterilmez
+            lastError = "abonelik durumu alınamadı. tekrar dene."
         }
     }
 

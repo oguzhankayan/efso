@@ -103,7 +103,8 @@ final class OnboardingViewModel {
             self.archetype = result
             self.lastError = nil
         } catch {
-            self.lastError = error.localizedDescription
+            // Kalibrasyon ağ hatası — kullanıcıya teknik detay gösterme
+            self.lastError = "bağlantı hatası. tekrar dene."
             self.archetype = nil
         }
     }
@@ -116,14 +117,16 @@ final class OnboardingViewModel {
 
     private func loadQuestions() {
         guard let url = Bundle.main.url(forResource: "calibration-questions", withExtension: "json") else {
-            self.lastError = "calibration-questions.json bulunamadı"
+            // Uygulama kaynak dosyası eksik — teknik detay
+            self.lastError = "bir şeyler ters gitti. uygulamayı güncelle."
             return
         }
         do {
             let data = try Data(contentsOf: url)
             self.questions = try JSONDecoder().decode([CalibrationQuestion].self, from: data)
         } catch {
-            self.lastError = "questions decode failed: \(error.localizedDescription)"
+            // JSON decode hatası — teknik detay kullanıcıya gösterilmez
+            self.lastError = "bir şeyler ters gitti. uygulamayı güncelle."
         }
     }
 }

@@ -172,7 +172,7 @@ struct ManualChatComposerView: View {
                         .font(AppFont.body(13, weight: .semibold))
                         .foregroundColor(on ? AppColor.bg0 : AppColor.text60)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
+                        .frame(minHeight: 36)
                         .background(
                             RoundedRectangle(cornerRadius: 9, style: .continuous)
                                 .fill(on ? AppColor.ink : Color.clear)

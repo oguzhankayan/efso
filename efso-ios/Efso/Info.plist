@@ -22,8 +22,6 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
-	<key>MIXPANEL_TOKEN</key>
-	<string>$(MIXPANEL_TOKEN)</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>mesaj ekran görüntülerini analiz etmek için fotoğraflara erişim.</string>
 	<key>POSTHOG_API_KEY</key>

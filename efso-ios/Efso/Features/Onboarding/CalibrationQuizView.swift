@@ -27,6 +27,17 @@ struct CalibrationQuizView: View {
 
                 ctaBlock(for: q)
                     .padding(.bottom, 28)
+            } else if vm.lastError != nil {
+                VStack(spacing: 16) {
+                    Text("bir şeyler ters gitti.")
+                        .font(AppFont.displayItalic(20, weight: .regular))
+                        .foregroundColor(AppColor.ink)
+                    Text("uygulamayı kapat ve tekrar aç.")
+                        .font(AppFont.body(14))
+                        .foregroundColor(AppColor.text60)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, 24)
             }
         }
         .animation(AppAnimation.standard, value: vm.quizIndex)

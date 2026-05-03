@@ -10,7 +10,7 @@ enum Mode: String, Codable, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .cevap: "CEVAP"
-        case .acilis: "AÇILIŞ"
+        case .acilis: "İLK MESAJ"
         case .tonla: "TONLA"
         case .davet: "DAVET"
         }

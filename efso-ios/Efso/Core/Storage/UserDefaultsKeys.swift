@@ -11,6 +11,8 @@ enum UDKey: String {
     /// Home topbar archetype butonu için tek-seferlik spotlight overlay
     /// gösterildi mi? Dismiss edildiğinde true olur, bir daha açılmaz.
     case archetypeSpotlightSeen = "efso.spotlight.archetype.seen"
+    /// Home mode listesi ilk-kullanım hint'i gösterildi mi?
+    case modeHintSeen = "efso.hint.mode.seen"
 }
 
 extension UserDefaults {

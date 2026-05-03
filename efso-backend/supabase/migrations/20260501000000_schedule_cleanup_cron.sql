@@ -15,7 +15,7 @@
 
 select cron.schedule(
     'cleanup-old-screenshots',
-    '0 3 * * *',  -- her gün 03:00 UTC
+    '0 * * * *',  -- her saat başı (screenshot'lar max ~25h'de silinir)
     $$
     select net.http_post(
         url := 'https://ftjdfcvlsqrjlvebbsqi.supabase.co/functions/v1/cleanup-storage',

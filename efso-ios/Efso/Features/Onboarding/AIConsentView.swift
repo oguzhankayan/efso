@@ -97,6 +97,15 @@ struct AIConsentView: View {
             HoloPrimaryButton(title: "kabul et ve devam", isEnabled: consentChecked) {
                 vm.aiConsentGiven = true
                 UserDefaults.standard.set(true, .aiConsentGiven)
+                Task {
+                    if let uid = AuthService.shared.userID?.uuidString {
+                        try? await SupabaseService.shared
+                            .from("profiles")
+                            .update(["ai_consent_given": true])
+                            .eq("id", value: uid)
+                            .execute()
+                    }
+                }
                 vm.advance()
             }
             .padding(.horizontal, AppSpacing.lg)

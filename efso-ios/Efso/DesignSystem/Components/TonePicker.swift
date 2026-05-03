@@ -8,6 +8,8 @@ struct TonePicker: View {
     let onSelect: (String) -> Void
     var label: String = "ton"
 
+    @State private var pressedTone: String? = nil
+
     var body: some View {
         VStack(alignment: .leading, spacing: label.isEmpty ? 0 : 10) {
             if !label.isEmpty {
@@ -31,10 +33,21 @@ struct TonePicker: View {
                                 )
                                 .contentShape(Rectangle().inset(by: -4))
                                 .frame(minHeight: 44)
+                                .scaleEffect(pressedTone == tone ? 0.92 : 1.0)
+                                .animation(.spring(response: 0.2, dampingFraction: 0.65), value: pressedTone)
                         }
                         .accessibilityLabel(tone)
                         .accessibilityValue(on ? "seçili" : "")
                         .sensoryFeedback(.selection, trigger: selected)
+                        .simultaneousGesture(
+                            DragGesture(minimumDistance: 0)
+                                .onChanged { _ in pressedTone = tone }
+                                .onEnded { _ in
+                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
+                                        pressedTone = nil
+                                    }
+                                }
+                        )
                     }
                 }
             }

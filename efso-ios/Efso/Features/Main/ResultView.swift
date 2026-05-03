@@ -7,7 +7,10 @@ struct ResultView: View {
     let result: GenerationResult
 
     @State private var copiedIndex: Int? = nil
+    @State private var feedbackGiven: Bool? = nil
     @State private var safeAreaTopInset: CGFloat = 59
+    @State private var observationVisible = false
+    @State private var visibleCardCount = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -60,33 +63,48 @@ struct ResultView: View {
                     AssistantObservationCard(text: observationText, fontSize: 19)
                         .padding(.horizontal, 24)
                         .padding(.top, 14)
+                        .opacity(observationVisible ? 1 : 0)
+                        .offset(y: observationVisible ? 0 : -8)
                 }
-
-                Text("3 cevap · kaydır")
-                    .font(AppFont.mono(10))
-                    .tracking(0.16 * 10)
-                    .foregroundColor(AppColor.text40)
-                    .textCase(.uppercase)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 24)
-                    .padding(.top, 24)
-                    .padding(.bottom, 12)
 
                 VStack(spacing: 12) {
                     ForEach(Array(result.replies.enumerated()), id: \.element.id) { idx, reply in
                         ReplyCard(
                             toneAngle: reply.toneLabel,
                             text: reply.text,
-                            isPrimary: idx == 0,
                             isCopied: copiedIndex == reply.index,
-                            onCopy: { copy(reply) },
-                            onThumbsUp: { sendFeedback(reply, positive: true) },
-                            onThumbsDown: { sendFeedback(reply, positive: false) }
+                            onCopy: { copy(reply) }
                         )
+                        .opacity(idx < visibleCardCount ? 1 : 0)
+                        .offset(y: idx < visibleCardCount ? 0 : 16)
                     }
                 }
                 .padding(.horizontal, 20)
+                .padding(.top, 20)
                 .padding(.bottom, 12)
+            }
+        }
+        .onAppear { staggerReveal() }
+    }
+
+    private func staggerReveal() {
+        let hasObservation = !observationText.isEmpty
+        let obsDelay: Duration = .milliseconds(120)
+        let cardBaseDelay: Duration = hasObservation ? .milliseconds(400) : .milliseconds(120)
+
+        Task {
+            if hasObservation {
+                try? await Task.sleep(for: obsDelay)
+                withAnimation(.easeOut(duration: 0.35)) {
+                    observationVisible = true
+                }
+            }
+            for i in 0..<result.replies.count {
+                let stagger: Duration = .milliseconds(i * 100)
+                try? await Task.sleep(for: i == 0 ? cardBaseDelay : stagger)
+                withAnimation(AppAnimation.standard) {
+                    visibleCardCount = i + 1
+                }
             }
         }
     }
@@ -129,53 +147,42 @@ struct ResultView: View {
     }
 
     private var actionFooter: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 14) {
             HStack(spacing: 8) {
                 Text("beğendin mi?")
-                    .font(AppFont.mono(11))
-                    .tracking(0.12 * 11)
+                    .font(AppFont.mono(10))
+                    .tracking(0.14 * 10)
                     .foregroundColor(AppColor.text40)
+                    .textCase(.uppercase)
                 Spacer()
                 feedbackPill("👍", positive: true)
                 feedbackPill("👎", positive: false)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(AppColor.bg1)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .strokeBorder(AppColor.text10, lineWidth: 1)
-                    )
-            )
 
             HStack(spacing: 10) {
                 Button {
                     vm.regenerate()
                 } label: {
                     Text("tekrarla")
-                        .font(AppFont.body(14))
-                        .foregroundColor(AppColor.ink)
+                        .font(AppFont.mono(12))
+                        .tracking(0.10 * 12)
+                        .foregroundColor(AppColor.text60)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 50)
+                        .frame(height: 46)
                         .background(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(AppColor.bg1)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .strokeBorder(AppColor.text10, lineWidth: 1)
-                                )
+                                .strokeBorder(AppColor.text10, lineWidth: 1)
                         )
                 }
                 Button {
                     vm.backToHome()
                 } label: {
                     Text("baştan")
-                        .font(AppFont.body(14, weight: .semibold))
+                        .font(AppFont.mono(12))
+                        .tracking(0.10 * 12)
                         .foregroundColor(AppColor.bg0)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 50)
+                        .frame(height: 46)
                         .background(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
                                 .fill(AppColor.ink)
@@ -184,30 +191,33 @@ struct ResultView: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.top, 12)
+        .padding(.top, 10)
         .padding(.bottom, 24)
     }
 
     private func feedbackPill(_ glyph: String, positive: Bool) -> some View {
-        Button {
+        let isActive = feedbackGiven == positive
+        return Button {
             guard let first = result.replies.first else { return }
+            feedbackGiven = positive
             sendFeedback(first, positive: positive)
         } label: {
             Text(glyph)
-                .font(AppFont.body(14))
+                .font(AppFont.body(13))
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(AppColor.bg2)
-                )
+                .opacity(isActive ? 1.0 : 0.5)
         }
         .buttonStyle(.plain)
+        .animation(.easeOut(duration: 0.2), value: feedbackGiven)
+        .sensoryFeedback(.impact(weight: .light), trigger: feedbackGiven)
+        .disabled(feedbackGiven != nil)
     }
 
     private func copy(_ reply: ReplyOption) {
         UIPasteboard.general.string = reply.text
         copiedIndex = reply.index
+        ReviewTrigger.onReplyCopied()
         Task {
             try? await Task.sleep(for: .milliseconds(1500))
             guard !Task.isCancelled else { return }
@@ -217,6 +227,8 @@ struct ResultView: View {
 
     private func sendFeedback(_ reply: ReplyOption, positive: Bool) {
         guard let conversationId = result.conversationId else { return }
+
+        if positive { ReviewTrigger.onPositiveFeedback() }
 
         struct FeedbackBody: Encodable {
             let conversation_id: String

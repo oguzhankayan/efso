@@ -16,7 +16,6 @@ struct DesignSystemCatalogView: View {
                     PrimaryButton("başla") {}
                     PrimaryButton("kalibre et", style: .holoBorder) {}
                     PrimaryButton("ücretsiz başlat", style: .holoFill) {}
-                    SecondaryButton(title: "geç", action: {})
                     PrimaryButton("disabled", isEnabled: false) {}
                 }
 
@@ -26,15 +25,6 @@ struct DesignSystemCatalogView: View {
                         Chip(label: "erkek", isSelected: selectedChip == "erkek", size: .large) { selectedChip = "erkek" }
                         Chip(label: "belirtmiyorum", isSelected: selectedChip == "belirtmiyorum", size: .large) { selectedChip = "belirtmiyorum" }
                     }
-                }
-
-                section("Progress dots") {
-                    ProgressDots(total: 8, active: 2)
-                    ProgressDots(total: 9, active: 5)
-                }
-
-                section("Observation card · asistan sesi") {
-                    ObservationCard(text: "3 gün cevap yok, sonra 'selam'. yazmamış sayılır.")
                 }
 
                 section("Reply cards · output sesi") {
@@ -61,7 +51,7 @@ struct DesignSystemCatalogView: View {
                 }
 
                 section("Skeleton · streaming") {
-                    ReplyCardSkeleton()
+                    ProgressView().tint(AppColor.accent)
                 }
 
                 colorPalette

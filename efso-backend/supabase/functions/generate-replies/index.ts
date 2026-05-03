@@ -1,5 +1,6 @@
 // POST /functions/v1/generate-replies
-// Stage 2 — Reply generation via Anthropic Claude Sonnet 4.5 (streaming SSE).
+// Stage 2 — Reply generation via Anthropic Claude Sonnet 4.6 (streaming SSE).
+// Fallback: OpenAI GPT-4o (non-streaming) if Anthropic fails.
 //
 // Flow:
 //   1. JWT validate
@@ -27,6 +28,8 @@ import {
   streamAnthropic,
   anthropicCostUSD,
   hasToxicPositivity,
+  callOpenAIFallback,
+  openaiGenerationCostUSD,
   type AnthropicUsage,
 } from "../_shared/llm-client.ts";
 import type { Mode, Tone, ParseResult, GenerationResult } from "../_shared/types.ts";
@@ -220,9 +223,11 @@ Deno.serve(async (req: Request) => {
         let finalUsage: AnthropicUsage = { input_tokens: 0, output_tokens: 0 };
         let observationEmitted = false;
         let repliesEmitted = 0;
+        let usedModel = Deno.env.get("ANTHROPIC_MODEL") ?? "claude-sonnet-4-6";
 
         const userMessage = buildUserPrompt(parseResult, tonesToUse, mode);
 
+        let anthropicFailed = false;
         try {
           for await (const evt of streamAnthropic({
             system: systemBlocks,
@@ -231,16 +236,13 @@ Deno.serve(async (req: Request) => {
             temperature: 0.85,
           })) {
             if (evt.type === "error") {
-              send({ type: "error", message: evt.error });
-              controller.close();
-              return;
+              console.warn("anthropic stream error, trying openai fallback:", evt.error);
+              anthropicFailed = true;
+              break;
             }
             if (evt.type === "text_delta" && evt.text) {
               assembled += evt.text;
 
-              // Incremental emission: parse and emit fields as they complete
-              // in the JSON stream. Client gets observation ~1-2s in, each
-              // reply ~1s after, instead of everything at the end (~5-8s).
               if (!observationEmitted) {
                 const obs = tryExtractObservation(assembled);
                 if (obs !== null) {
@@ -268,9 +270,35 @@ Deno.serve(async (req: Request) => {
             }
           }
         } catch (e) {
-          send({ type: "error", message: e instanceof Error ? e.message : String(e) });
-          controller.close();
-          return;
+          console.warn("anthropic stream exception, trying openai fallback:", e instanceof Error ? e.message : e);
+          anthropicFailed = true;
+        }
+
+        // ─── OpenAI GPT-4o fallback (non-streaming) ───
+        if (anthropicFailed && repliesEmitted === 0) {
+          try {
+            const stableContent = [L0.content, L2.content, L4Filled].join("\n\n---\n\n");
+            const archetypeBlock = archetypePrompt?.content
+              ? `\n--- archetype ---\n${archetypePrompt.content}` : "";
+            const fullSystem = `${stableContent}\n\n--- mode ---\n${L1.content}${archetypeBlock}\n\n--- tone ---\n${tonesBlock}`;
+
+            const fallbackResp = await callOpenAIFallback({
+              systemPrompt: fullSystem,
+              userPrompt: userMessage,
+              maxTokens: 1500,
+              temperature: 0.85,
+            });
+            assembled = fallbackResp.text;
+            usedModel = fallbackResp.model;
+            finalUsage = {
+              input_tokens: fallbackResp.usage.prompt_tokens,
+              output_tokens: fallbackResp.usage.completion_tokens,
+            };
+          } catch (fallbackErr) {
+            send({ type: "error", message: `both providers failed: ${fallbackErr instanceof Error ? fallbackErr.message : fallbackErr}` });
+            controller.close();
+            return;
+          }
         }
 
         // Final parse for DB persistence + fallback emission
@@ -321,7 +349,9 @@ Deno.serve(async (req: Request) => {
         }
 
         // Persist
-        const cost = anthropicCostUSD(finalUsage);
+        const cost = anthropicFailed
+          ? openaiGenerationCostUSD({ prompt_tokens: finalUsage.input_tokens, completion_tokens: finalUsage.output_tokens, total_tokens: finalUsage.input_tokens + finalUsage.output_tokens })
+          : anthropicCostUSD(finalUsage);
         const durationMs = Date.now() - startTime;
 
         // DB writes parallelized — client'a SSE zaten gitti, bunlar fire-and-forget.
@@ -342,7 +372,7 @@ Deno.serve(async (req: Request) => {
               .update({
                 tone: tonesToUse[0],
                 generation_result: structured,
-                generation_model: Deno.env.get("ANTHROPIC_MODEL") ?? "claude-sonnet-4-6",
+                generation_model: usedModel,
                 generation_cost_usd: cost,
                 generation_duration_ms: durationMs,
                 prompt_version_id: L1.id,

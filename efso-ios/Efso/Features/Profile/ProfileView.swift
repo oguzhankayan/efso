@@ -310,7 +310,7 @@ struct ProfileView: View {
             divider
             inAppLinkRow(title: "kullanım şartları", url: URL(string: "https://efso-app.pages.dev/terms"))
             divider
-            mailRow(title: "destek", url: URL(string: "mailto:support@efso.app"))
+            inAppLinkRow(title: "destek", url: URL(string: "https://efso-app.pages.dev/support"))
         }
     }
 
@@ -501,7 +501,8 @@ struct ProfileView: View {
         do {
             try await vm.deleteAccount()
         } catch {
-            deleteError = "silinemedi: \(error.localizedDescription)"
+            // Hesap silme hatası — teknik detay kullanıcıya gösterilmez
+            deleteError = "bir şeyler ters gitti. tekrar dene."
         }
     }
 

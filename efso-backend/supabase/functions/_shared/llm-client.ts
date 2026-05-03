@@ -1,11 +1,7 @@
-// LLM client — Anthropic Claude Sonnet 4.5 + Gemini 2.5 Flash.
+// LLM client — Anthropic Claude Sonnet 4.6 + OpenAI GPT-4o-mini.
 //
 // Anthropic: Stage 2 generation, streaming SSE, prompt caching on L0/L2/L4.
-// Gemini: Stage 1 vision parse, structured JSON output.
-//
-// Costs (Apr 2026):
-//   Sonnet 4.5: input $3/MTok (cache write $3.75, cache read $0.30), output $15/MTok
-//   Gemini 2.5 Flash: input $0.30/MTok, output $2.50/MTok
+// OpenAI: Stage 1 vision parse, structured JSON output.
 //
 // Key'ler env'den okunur, asla log'lanmaz.
 
@@ -114,6 +110,7 @@ export async function* streamAnthropic(
         "content-type": "application/json",
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(25_000),
     });
   } catch (e) {
     yield { type: "error", error: `network: ${e instanceof Error ? e.message : String(e)}` };
@@ -238,6 +235,7 @@ export async function callVisionParse(
       "content-type": "application/json",
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(20_000),
   });
 
   if (!response.ok) {
@@ -267,6 +265,79 @@ export async function callVisionParse(
     usage,
     durationMs: Date.now() - start,
     model: OPENAI_MODEL,
+  };
+}
+
+// ──────────────────────────────────────────────────────────
+// OpenAI GPT-4o — Stage 2 fallback (non-streaming)
+// ──────────────────────────────────────────────────────────
+
+const OPENAI_FALLBACK_MODEL = Deno.env.get("OPENAI_FALLBACK_MODEL") ?? "gpt-4o";
+
+export interface FallbackGenerationRequest {
+  systemPrompt: string;
+  userPrompt: string;
+  maxTokens?: number;
+  temperature?: number;
+}
+
+export interface FallbackGenerationResponse {
+  text: string;
+  usage: VisionUsage;
+  durationMs: number;
+  model: string;
+}
+
+export function openaiGenerationCostUSD(u: VisionUsage): number {
+  // gpt-4o: $2.50/M input, $10/M output
+  return (u.prompt_tokens * 2.50 + u.completion_tokens * 10.0) / 1_000_000;
+}
+
+export async function callOpenAIFallback(
+  req: FallbackGenerationRequest,
+): Promise<FallbackGenerationResponse> {
+  if (!OPENAI_KEY) throw new Error("OPENAI_API_KEY not configured");
+
+  const start = Date.now();
+  const body = {
+    model: OPENAI_FALLBACK_MODEL,
+    temperature: req.temperature ?? 0.85,
+    max_tokens: req.maxTokens ?? 1500,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: req.systemPrompt },
+      { role: "user", content: req.userPrompt },
+    ],
+  };
+
+  const response = await fetch(OPENAI_API, {
+    method: "POST",
+    headers: {
+      "authorization": `Bearer ${OPENAI_KEY}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(25_000),
+  });
+
+  if (!response.ok) {
+    const txt = await response.text().catch(() => "");
+    throw new Error(`openai fallback ${response.status}: ${txt.slice(0, 300)}`);
+  }
+
+  const data = await response.json();
+  const text: string = data?.choices?.[0]?.message?.content ?? "";
+  if (!text) throw new Error("openai fallback: empty response");
+
+  return {
+    text,
+    usage: {
+      prompt_tokens: data?.usage?.prompt_tokens ?? 0,
+      completion_tokens: data?.usage?.completion_tokens ?? 0,
+      total_tokens: data?.usage?.total_tokens ?? 0,
+    },
+    durationMs: Date.now() - start,
+    model: OPENAI_FALLBACK_MODEL,
   };
 }
 

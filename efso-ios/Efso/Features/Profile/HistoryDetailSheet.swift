@@ -42,7 +42,6 @@ struct HistoryDetailSheet: View {
                                 ReplyCard(
                                     toneAngle: reply.toneLabel,
                                     text: reply.text,
-                                    isPrimary: idx == 0,
                                     isCopied: copiedIndex == reply.index,
                                     onCopy: { copyReply(reply) }
                                 )

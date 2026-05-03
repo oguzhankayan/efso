@@ -13,8 +13,12 @@ struct HomeView: View {
     @State private var subs = SubscriptionManager.shared
     @State private var showingAIConsentRevoke = false
     @State private var showingRecalibrate = false
+    @State private var showRecalibrationFlow = false
     @AppStorage(UDKey.archetypeSpotlightSeen.rawValue) private var archetypeSpotlightSeen: Bool = false
     @State private var showArchetypeSpotlight: Bool = false
+    @AppStorage(UDKey.modeHintSeen.rawValue) private var modeHintSeen: Bool = false
+    @State private var showModeHint: Bool = false
+    @State private var modeHintPulse: Bool = false
     @State private var selectedHistoryItem: ConversationHistoryItem?
     @State private var safeAreaTopInset: CGFloat = 47
     @State private var cachedStats: HomeStats?
@@ -69,19 +73,22 @@ struct HomeView: View {
         .alert("kalibrasyonu yeniden mi ölçelim?", isPresented: $showingRecalibrate) {
             Button("vazgeç", role: .cancel) {}
             Button("yenile", role: .destructive) {
-                UserDefaults.standard.set(false, .onboardingCompleted)
-                Task {
-                    await SubscriptionManager.shared.signOut()
-                    try? await AuthService.shared.signOut()
-                }
+                showRecalibrationFlow = true
             }
         } message: {
-            Text("9 sorudan oluşan kalibrasyon yeniden başlar. mevcut arketip silinir.")
+            Text("9 sorudan oluşan kalibrasyon yeniden başlar.")
+        }
+        .fullScreenCover(isPresented: $showRecalibrationFlow) {
+            RecalibrationFlowView { newArchetype in
+                vm.archetype = newArchetype
+                UserDefaults.standard.set(newArchetype.rawValue, .currentArchetype)
+                showRecalibrationFlow = false
+            }
         }
         .overlay {
             if showArchetypeSpotlight {
                 SpotlightOverlay(
-                    targetCenter: CGPoint(x: 24 + 22, y: safeAreaTopInset + 6 + 22 + 14 + 22),
+                    targetCenter: CGPoint(x: 24 + 18, y: safeAreaTopInset + 6 + 22 + 14 + 18),
                     targetRadius: 22,
                     title: "tarzını buradan değiştir",
                     subtitle: "istediğin zaman avatara dokun, başka bir arketipe geç. nasıl çalışır bilgisi sağ üstteki ayarlarda.",
@@ -102,6 +109,19 @@ struct HomeView: View {
                     try? await Task.sleep(for: .milliseconds(600))
                     if !archetypeSpotlightSeen {
                         showArchetypeSpotlight = true
+                    }
+                }
+            }
+            if !modeHintSeen {
+                let delay: Duration = archetypeSpotlightSeen ? .milliseconds(400) : .milliseconds(1800)
+                Task {
+                    try? await Task.sleep(for: delay)
+                    guard !modeHintSeen else { return }
+                    withAnimation(.easeOut(duration: 0.35)) {
+                        showModeHint = true
+                    }
+                    withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                        modeHintPulse = true
                     }
                 }
             }
@@ -322,34 +342,34 @@ struct HomeView: View {
 
     private func streakObservation(arch: ArchetypePrimary, days: Int) -> (String, String?) {
         switch arch {
-        case .dryroaster:       return ("\(days) gün üst üste.", "alışkanlık mı, ihtiyaç mı?")
+        case .dryroaster:       return ("\(days) gün üst üste.", nil)
         case .observer:         return ("\(days) gün aralıksız.", "bir örüntü var.")
-        case .softie_with_edges: return ("\(days) gündür buradasın.", "güzel gidiyorsun.")
+        case .softie_with_edges: return ("\(days) gündür buradasın.", nil)
         case .chaos_agent:      return ("\(days) gün. durmadın.", "momentum iyi.")
-        case .strategist:       return ("\(days) günlük seri.", "tutarlılık kazandırır.")
-        case .romantic_pessimist: return ("\(days) gün üst üste geldin.", "alışma sakın.")
+        case .strategist:       return ("\(days) günlük seri.", nil)
+        case .romantic_pessimist: return ("\(days) gün üst üste geldin.", nil)
         }
     }
 
     private func highUsageObservation(arch: ArchetypePrimary, count: Int) -> (String, String?) {
         switch arch {
-        case .dryroaster:       return ("bu hafta \(count) cevap.", "biraz nefes ver.")
-        case .observer:         return ("\(count) cevap bu hafta.", "gözlemle, acele etme.")
-        case .softie_with_edges: return ("bu hafta \(count) tane olmuş.", "kendine de vakit ayır.")
-        case .chaos_agent:      return ("\(count) cevap. fırtına gibi.", "devam.")
+        case .dryroaster:       return ("bu hafta \(count) cevap.", "yoğun geçmiş.")
+        case .observer:         return ("\(count) cevap bu hafta.", "hareketli.")
+        case .softie_with_edges: return ("bu hafta \(count) tane olmuş.", nil)
+        case .chaos_agent:      return ("\(count) cevap.", "devam.")
         case .strategist:       return ("bu hafta \(count).", "veri birikiyor.")
-        case .romantic_pessimist: return ("\(count) cevap bu hafta.", "çok mu yazıyorsun?")
+        case .romantic_pessimist: return ("\(count) cevap bu hafta.", nil)
         }
     }
 
     private func normalObservation(arch: ArchetypePrimary, count: Int) -> (String, String?) {
         switch arch {
-        case .dryroaster:       return ("bu hafta \(count) cevap.", "fena değil.")
+        case .dryroaster:       return ("bu hafta \(count) cevap.", nil)
         case .observer:         return ("\(count) cevap.", "sakin tempo.")
-        case .softie_with_edges: return ("bu hafta \(count) cevap ürettin.", "iyi gidiyorsun.")
+        case .softie_with_edges: return ("bu hafta \(count) cevap ürettin.", nil)
         case .chaos_agent:      return ("\(count) cevap.", "daha var mı?")
-        case .strategist:       return ("\(count) cevap bu hafta.", "yeterli mi?")
-        case .romantic_pessimist: return ("bu hafta \(count) cevap.", "az mı, çok mu, bilemedim.")
+        case .strategist:       return ("\(count) cevap bu hafta.", nil)
+        case .romantic_pessimist: return ("bu hafta \(count) cevap.", nil)
         }
     }
 
@@ -397,6 +417,17 @@ struct HomeView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("\(mode.title) modu, \(mode.desc)")
+                .background {
+                    if mode.id == .cevap && showModeHint {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(AppColor.holographic.opacity(modeHintPulse ? 0.08 : 0.02))
+                            .padding(.horizontal, 16)
+                    }
+                }
+
+                if mode.id == .cevap && showModeHint {
+                    modeHintBanner
+                }
 
                 if mode.id != Self.modes.last?.id {
                     Rectangle()
@@ -406,6 +437,36 @@ struct HomeView: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var modeHintBanner: some View {
+        Button {
+            dismissModeHint()
+        } label: {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(AppColor.holographic.opacity(modeHintPulse ? 0.7 : 0.3))
+                    .frame(width: 6, height: 6)
+                Text("bir ekran görüntüsü yükle, gerisini biz hallederiz.")
+                    .font(AppFont.body(12))
+                    .foregroundColor(AppColor.text60)
+                Spacer()
+            }
+            .padding(.horizontal, 40)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    private func dismissModeHint() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        withAnimation(.easeOut(duration: 0.25)) {
+            showModeHint = false
+        }
+        modeHintSeen = true
     }
 
     // MARK: - Quota card
@@ -479,10 +540,12 @@ struct HomeView: View {
     // MARK: - Mode entry gate
 
     private func tryEnterMode(_ mode: Mode) {
+        if showModeHint { dismissModeHint() }
         if !EntitlementGate.canUseMode(mode, isPremium: subs.isActive) {
             paywallReason = .modeLocked(mode)
             return
         }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         vm.selectMode(mode)
     }
 

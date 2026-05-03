@@ -59,7 +59,8 @@ final class AuthService {
             await identifyVendors(session: session)
         } catch {
             self.session = nil
-            self.lastError = .unknown(error.localizedDescription)
+            // Anonim oturum oluşturulamadı — teknik detay saklanmaz
+            self.lastError = .unknown("bağlantı hatası. tekrar dene.")
         }
     }
 

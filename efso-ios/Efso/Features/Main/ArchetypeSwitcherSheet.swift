@@ -121,7 +121,8 @@ struct ArchetypeSwitcherSheet: View {
             try await vm.updateArchetype(selected)
             dismiss()
         } catch {
-            self.error = "kaydedilemedi: \(error.localizedDescription)"
+            // Arketip kaydetme hatası — teknik detay kullanıcıya gösterilmez
+            self.error = "kaydedilemedi. tekrar dene."
         }
     }
 }

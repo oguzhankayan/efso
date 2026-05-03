@@ -1,17 +1,17 @@
 // POST /functions/v1/parse-screenshot
-// Stage 1 — Vision parse via Gemini 2.5 Flash.
+// Stage 1 — Vision parse via GPT-4o-mini.
 //
 // Flow:
 //   1. JWT validate, user_id extract
 //   2. multipart parse (screenshot + mode)
 //   3. Rate limit check (10/min/user)
 //   4. Upload to storage: screenshots/<user_id>/<uuid>.<ext>
-//   5. Call Gemini with stage1_parser prompt + image
+//   5. Call OpenAI vision with stage1_parser prompt + image
 //   6. Validate ParseResult schema
 //   7. If injection_attempt → log security_event, return 422
 //   8. Insert conversations row, return { conversation_id, parse_result }
 
-import { preflightOk, jsonResponse, errorResponse } from "../_shared/cors.ts";
+import { corsHeaders, preflightOk, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { requireAuth, AuthError } from "../_shared/auth.ts";
 import { loadPrompt } from "../_shared/prompt-loader.ts";
 import { callVisionParse, visionCostUSD } from "../_shared/llm-client.ts";
@@ -301,6 +301,23 @@ interface ManualInput {
 const MAX_MANUAL_MESSAGES = 30;
 const MAX_TEXT_LEN = 500;
 
+const INJECTION_PATTERNS: RegExp[] = [
+  /ignore\s+(all\s+)?previous\s+instructions/i,
+  /önceki\s+talimatları\s+unut/i,
+  /sistem\s+prompt/i,
+  /system\s+prompt/i,
+  /you\s+are\s+now/i,
+  /sen\s+artık/i,
+  /disregard\s+(all\s+)?prior/i,
+  /forget\s+(everything|all)/i,
+  /new\s+instructions/i,
+  /override\s+instructions/i,
+];
+
+function hasInjectionAttempt(text: string): boolean {
+  return INJECTION_PATTERNS.some((re) => re.test(text));
+}
+
 function buildManualParseResult(raw: string, mode: Mode): ParseResult {
   let input: ManualInput;
   try {
@@ -328,6 +345,8 @@ function buildManualParseResult(raw: string, mode: Mode): ParseResult {
     if (!bio && !handle && posts.length === 0 && photoDescs.length === 0) {
       throw new Error("profil için en az bir alan dolu olmalı (bio/handle/post/foto)");
     }
+    const allProfileText = [bio, handle, ...posts, ...photoDescs].filter(Boolean).join(" ");
+    const injected = hasInjectionAttempt(allProfileText);
     return {
       screenshot_type: "profile",
       participants: [],
@@ -348,7 +367,7 @@ function buildManualParseResult(raw: string, mode: Mode): ParseResult {
       tone_observed: "neutral",
       red_flags: [],
       context_summary_tr: "manuel girilen profil",
-      injection_attempt: false,
+      injection_attempt: injected,
       image_quality: "good",
     };
   }
@@ -385,7 +404,7 @@ function buildManualParseResult(raw: string, mode: Mode): ParseResult {
     tone_observed: "neutral",
     red_flags: [],
     context_summary_tr: `manuel girilen ${msgs.length} mesajlık konuşma`,
-    injection_attempt: false,
+    injection_attempt: msgs.some((m) => hasInjectionAttempt(m.text)),
     image_quality: "good",
   };
 }

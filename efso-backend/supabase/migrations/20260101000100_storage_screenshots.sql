@@ -44,7 +44,7 @@ CREATE POLICY "Users delete own screenshots"
 -- Schedule via supabase dashboard or pg_cron extension after deploy:
 --   SELECT cron.schedule(
 --       'cleanup-old-screenshots',
---       '0 3 * * *',  -- 03:00 UTC daily
+--       '0 * * * *',  -- her saat başı
 --       $$ SELECT net.http_post(
 --           url := concat(current_setting('app.settings.supabase_url'), '/functions/v1/cleanup-storage'),
 --           headers := jsonb_build_object('Authorization', concat('Bearer ', current_setting('app.settings.service_role_key')))

@@ -69,7 +69,7 @@ struct PaywallView: View {
                 onCancel: { showPlanSheet = false },
                 showDecline: onDismiss == nil
             )
-            .presentationDetents([.fraction(0.5)])
+            .presentationDetents([.fraction(0.6)])
             .presentationDragIndicator(.visible)
             .presentationCornerRadius(28)
             .presentationBackground(AppColor.bg0)
@@ -162,6 +162,7 @@ struct PlanSelectorSheet: View {
 
     @State private var subs = SubscriptionManager.shared
     @State private var purchasing = false
+    @State private var trialEnabled = true
     @State private var error: String?
     @State private var showTerms = false
     @State private var showPrivacy = false
@@ -181,18 +182,28 @@ struct PlanSelectorSheet: View {
     }
 
     var body: some View {
-        VStack(spacing: AppSpacing.md) {
+        VStack(spacing: 0) {
             Text("planını seç")
                 .font(AppFont.displayItalic(26))
                 .tracking(-0.02 * 26)
                 .foregroundColor(AppColor.ink)
                 .padding(.top, AppSpacing.md)
+                .padding(.bottom, AppSpacing.md)
 
-            planCard
+            trialToggleRow
+                .padding(.bottom, AppSpacing.md)
+
+            if trialEnabled {
+                trialTimeline
+                    .padding(.bottom, AppSpacing.md)
+            } else {
+                directPriceCard
+                    .padding(.bottom, AppSpacing.md)
+            }
 
             VStack(spacing: AppSpacing.sm) {
                 HoloPrimaryButton(
-                    title: purchasing ? "..." : "ücretsiz başlat",
+                    title: purchasing ? "..." : (trialEnabled ? "ücretsiz başlat" : "abone ol"),
                     isEnabled: !purchasing
                 ) {
                     Task { await runPurchase() }
@@ -221,12 +232,15 @@ struct PlanSelectorSheet: View {
                 }
             }
 
-            Text("3 gün ücretsiz. sonra haftalık \(weeklyPriceText) otomatik yenilenir. ayarlar, apple id, abonelikler'den iptal.")
+            Text(trialEnabled
+                 ? "3 gün ücretsiz. sonra haftalık \(weeklyPriceText) otomatik yenilenir. istediğin zaman iptal et."
+                 : "haftalık \(weeklyPriceText) otomatik yenilenir. istediğin zaman iptal et.")
                 .font(AppFont.body(10))
                 .foregroundColor(AppColor.text40)
                 .multilineTextAlignment(.center)
                 .lineSpacing(10 * 0.35)
                 .padding(.horizontal, AppSpacing.xs)
+                .padding(.top, AppSpacing.sm)
 
             Spacer(minLength: 0)
 
@@ -235,6 +249,7 @@ struct PlanSelectorSheet: View {
         .padding(.horizontal, AppSpacing.lg)
         .padding(.bottom, AppSpacing.xs)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(.easeInOut(duration: 0.25), value: trialEnabled)
         .sheet(isPresented: $showTerms) {
             LegalSheet(kind: .terms) { showTerms = false }
                 .presentationBackground(AppColor.bg0)
@@ -258,7 +273,117 @@ struct PlanSelectorSheet: View {
         }
     }
 
-    private var planCard: some View {
+    // MARK: - Trial toggle
+
+    private var trialToggleRow: some View {
+        HStack {
+            Text("ücretsiz deneme")
+                .font(AppFont.body(15, weight: .medium))
+                .foregroundColor(AppColor.ink)
+            Spacer()
+            Toggle("", isOn: $trialEnabled)
+                .labelsHidden()
+                .tint(AppColor.accent)
+        }
+        .padding(.horizontal, AppSpacing.md)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(AppColor.bg2.opacity(0.6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(AppColor.text10, lineWidth: 1)
+                )
+        )
+        .sensoryFeedback(.impact(weight: .light), trigger: trialEnabled)
+        .accessibilityLabel("ücretsiz deneme \(trialEnabled ? "açık" : "kapalı")")
+    }
+
+    // MARK: - Trial timeline
+
+    private var trialTimeline: some View {
+        VStack(spacing: 0) {
+            timelineRow(
+                dotColor: AppColor.pop,
+                label: "bugün",
+                detail: "3 gün ücretsiz",
+                price: "0",
+                isTop: true
+            )
+            timelineRow(
+                dotColor: AppColor.accent,
+                label: trialEndDateText,
+                detail: "haftalık yenilenir",
+                price: weeklyPriceText,
+                isTop: false
+            )
+        }
+        .padding(AppSpacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(AppColor.bg2.opacity(0.6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(AppColor.text10, lineWidth: 1)
+                )
+        )
+        .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    private func timelineRow(
+        dotColor: Color,
+        label: String,
+        detail: String,
+        price: String,
+        isTop: Bool
+    ) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(spacing: 0) {
+                if !isTop {
+                    Rectangle()
+                        .fill(AppColor.text20)
+                        .frame(width: 1.5, height: 12)
+                }
+                Circle()
+                    .fill(dotColor)
+                    .frame(width: 8, height: 8)
+                if isTop {
+                    Rectangle()
+                        .fill(AppColor.text20)
+                        .frame(width: 1.5, height: 12)
+                }
+            }
+            .frame(width: 8)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(AppFont.body(14, weight: .semibold))
+                    .foregroundColor(AppColor.ink)
+                Text(detail)
+                    .font(AppFont.body(11))
+                    .foregroundColor(isTop ? AppColor.pop : AppColor.text40)
+            }
+
+            Spacer()
+
+            Text(price)
+                .font(AppFont.body(14, weight: .semibold))
+                .foregroundColor(AppColor.ink)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var trialEndDateText: String {
+        let date = Calendar.istanbul.date(byAdding: .day, value: 3, to: Date()) ?? Date()
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "tr_TR")
+        f.dateFormat = "d MMM"
+        return f.string(from: date)
+    }
+
+    // MARK: - Direct price card (trial off)
+
+    private var directPriceCard: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: AppSpacing.xs) {
                 Text("haftalık")
@@ -284,12 +409,15 @@ struct PlanSelectorSheet: View {
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(AppColor.bg2.opacity(0.6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(AppColor.text10, lineWidth: 1)
+                )
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(AppColor.text10, lineWidth: 1)
-        )
+        .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
+
+    // MARK: - Footer
 
     private var footerRow: some View {
         HStack(spacing: 0) {
@@ -322,6 +450,8 @@ struct PlanSelectorSheet: View {
             .foregroundColor(AppColor.text20)
     }
 
+    // MARK: - Pricing
+
     private var weeklyPriceText: String {
         subs.weeklyPackage?.storeProduct.localizedPriceString ?? "₺49 / hafta"
     }
@@ -337,6 +467,8 @@ struct PlanSelectorSheet: View {
         let str = formatter.string(from: NSNumber(value: perDay)) ?? ""
         return str.isEmpty ? nil : "günlük \(str)"
     }
+
+    // MARK: - Actions
 
     private func runPurchase() async {
         error = nil

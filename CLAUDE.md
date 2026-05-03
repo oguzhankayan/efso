@@ -14,16 +14,15 @@ Dating-first **ama Apple Review için "iletişim koçu" pozisyonlanır**. Demo c
 
 ## Stack
 
-**iOS** (iOS 17+, Swift 6 hazır): SwiftUI, MV pattern (@Observable), async/await, StoreKit 2 + RevenueCat, PhotosUI, Apple Sign In, Mixpanel + PostHog + Sentry, Lottie. WidgetKit Phase 7+.
+**iOS** (iOS 17+, Swift 6 hazır): SwiftUI, MV pattern (@Observable), async/await, StoreKit 2 + RevenueCat, PhotosUI, Apple Sign In, PostHog + Sentry. WidgetKit Phase 7+.
 
 **Backend**: Supabase (Postgres + Auth + Storage + Edge Functions/Deno+TS). RLS her tabloda zorunlu. Screenshot 24h sonra cron ile silinir, conversations 30 gün tutulur.
 
 **LLM**:
-- Stage 1 parse: Gemini 2.5 Flash (vision, structured JSON), ~$0.001, ~1.5s
-- Stage 2 generate: Claude Sonnet 4.5, prompt caching aktif (L0+L2+L3, ~%75 cost azalması), ~$0.012, 3-5s streaming
-- Failover: GPT-5
+- Stage 1 parse: GPT-4o-mini (vision, structured JSON), ~$0.001, ~1.5s
+- Stage 2 generate: Claude Sonnet 4.6, prompt caching aktif (L0+L2+L4, ~%75 cost azalması), ~$0.024, 3-5s streaming. Failover: OpenAI GPT-4o (non-streaming).
 
-**Per-user daily LLM cost ceiling: $0.50.** >100 generation/gün/user alarm.
+**Per-user daily LLM cost ceiling: $0.50.** ~20 generation/gün/user. Free tier (3/gün): ~$0.075/kullanıcı.
 
 ---
 
@@ -62,7 +61,7 @@ Dropped (2026-04-28, commit c3b7656): **bio**, **hayalet** (ghost-recovery), **e
 
 ## Onboarding (12 ekran)
 
-Splash → Demographic → CalibrationIntro → CalibrationQuiz (×9) → CalibrationResult (Lottie reveal) → DemoUpload → NotificationPermission → Paywall → HomeView.
+Splash → Demographic → CalibrationIntro → CalibrationQuiz (×9) → CalibrationResult → DemoUpload → NotificationPermission → Paywall → HomeView.
 
 - **Skip butonu YOK** (paywall hariç). Hedef toplam: ~90s.
 - Kalibrasyon **deterministik**: aynı cevaplar → aynı arketip. Mantık `supabase/functions/calibrate/deriveArchetype.ts`'de.
@@ -74,7 +73,7 @@ Splash → Demographic → CalibrationIntro → CalibrationQuiz (×9) → Calibr
 
 - Onboarding sonu (DemoUpload sonrası).
 - Trial toggle **DEFAULT ON**, ana CTA "ücretsiz başlat".
-- ₺49/hafta. (Yıllık ₺499 wire değil, Phase 7 backlog.) "İstediğin zaman iptal" footnote, restore visible.
+- ₺79.99/hafta (3 gün ücretsiz trial). Yıllık ürün Phase 7 backlog. "İstediğin zaman iptal" footnote, restore visible.
 - **Free: 3 üretim/gün** — istediği modda, istediği tonda harcayabilir. Tüm 4 mod açık, tüm 5 ton açık.
 - **Premium: sınırsız.** Tek pitch: throttle kalkar.
 - Mode/tone kilidi yok (2026-05-01 itibariyle kaldırıldı; conversion için kullanıcının tüm değeri denemiş olması gerekli).
@@ -102,7 +101,7 @@ Detaylı kontratlar: edge function dosyalarındaki types.
 - **Tinder/Bumble logo veya UI ASLA görünmesin.** Kalibrasyon UI'da rakip app ismi geçmez — generic "flört".
 - AI Disclosure: ilk launch consent modal, settings'te "Veri ve Yapay Zeka" bölümü, geri çekilebilir.
 
-**Yasak metadata kelimeleri**: rizz, pickup, wingman, dating coach, get more matches, AI girlfriend, ChatGPT, GPT, Claude, Gemini.
+**Yasak metadata kelimeleri**: rizz, pickup, wingman, dating coach, get more matches, AI girlfriend, ChatGPT, GPT, Claude.
 
 ---
 
@@ -129,7 +128,7 @@ System prompt'ları **`efso-backend/prompts/`** altında version-controlled mark
 
 Aktif version DB'de (`prompt_versions` tablosu, A/B + rollback). `seed-prompts.ts` ile sync.
 
-**Token bütçesi**: system prompt <3000 token. Voice örnekleri tone başına 4-5 ile sınırlı. Memory summarization ile yönetilir (profile/session/conversation buffer 3 katman).
+**Token bütçesi**: system prompt <4500 token. Voice örnekleri tone başına 4-5 ile sınırlı. Memory summarization ile yönetilir (profile/session/conversation buffer 3 katman).
 
 ---
 
@@ -139,9 +138,9 @@ Aktif version DB'de (`prompt_versions` tablosu, A/B + rollback). `seed-prompts.t
 1. **Onboarding** ✅ — 12 ekran, calibrate endpoint, deterministik arketip.
 2. **Vision pipeline** ✅ — parse + generate (streaming), prompt cache, failover. Eval: 4 mode için ayrı matrix (test-acilis/davet/tonla/matrix.ts), her mode v2/v3 sertleştirilmiş prompts.
 3. **Modes + Profile** ✅ — 4 mod (cevap, açılış, tonla, davet) uçtan uca + manuel chat composer + manuel profile entry, history, arketip kart, hesabı sil, AI consent revoke.
-4. **Subscription** %90 — StoreKit 2 + RevenueCat + restore + cost ceiling + RC purchase race grace period. Webhook canlı test + yıllık ürün wire kaldı.
-5. **Polish** %85 — animations, haptics, empty/error states, VoiceOver, hit-target 44pt, App Store metadata kaldı.
-6. **TestFlight & Launch** ⏳ user manual — DEVELOPMENT_TEAM, signing, archive, beta invite. Submission blocker'ları (Privacy Manifest, AppIcon, version, ITSAppUsesNonExemptEncryption) tamam.
+4. **Subscription** %95 — StoreKit 2 + RevenueCat + restore + cost ceiling + RC purchase race grace period. ₺79.99/hafta + 3 gün trial. Yıllık ürün wire kaldı.
+5. **Polish** %90 — animations, haptics, empty/error states, VoiceOver, hit-target 44pt. Mixpanel + Lottie kaldırıldı, PostHog aktif.
+6. **TestFlight & Launch** ⏳ — DEVELOPMENT_TEAM, signing, archive, beta invite. Submission blocker'ları (Privacy Manifest, AppIcon, version, ITSAppUsesNonExemptEncryption) tamam.
 7. **Post-launch** — feature flags, prompt versioning UI, WidgetKit, AppShortcuts, push series, yıllık ürün, AI consent backend sync.
 
 **Ek tamamlananlar (Faz A/B/C, audit-driven):**
@@ -160,7 +159,7 @@ Aktif version DB'de (`prompt_versions` tablosu, A/B + rollback). `seed-prompts.t
 2. **Kalibrasyonu "değişmez kimlik" gibi satma.** Davranıştan öğrenilir, "Kalibrasyonu yenile" opsiyonu kalsın.
 3. **Asistan sesi ile output sesini karıştırma.** Asistan "yazmamış sayılır" der; karşı tarafa atılan mesaj asla bunu söylemez.
 4. **Tek shot vision call yapma.** Stage 1 + Stage 2 ayrı — vision'da tek shot injection bağışıklığı sıfır.
-5. **System prompt'u şişirme.** <3000 token, summarization şart.
+5. **System prompt'u şişirme.** <4500 token, summarization şart.
 6. **Toxic positivity escape hatch.** LLM default "sen harikasın" üretir, post-generate self-check zorunlu.
 
 ---

@@ -99,6 +99,27 @@ struct VoiceSampleEditorView: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 16)
                 }
+                if loading {
+                    ProgressView()
+                        .tint(AppColor.text40)
+                        .frame(maxWidth: .infinity, minHeight: 220)
+                } else if loadFailed {
+                    VStack(spacing: 14) {
+                        Text("yüklenemedi.")
+                            .font(AppFont.body(14))
+                            .foregroundColor(AppColor.text60)
+                        Button {
+                            Task { await load() }
+                        } label: {
+                            Text("tekrar dene")
+                                .font(AppFont.mono(12))
+                                .foregroundColor(AppColor.accent)
+                                .frame(minHeight: 44)
+                                .contentShape(Rectangle())
+                        }
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 220)
+                }
                 TextEditor(text: $sample)
                     .focused($focused)
                     .font(AppFont.body(14))
@@ -108,7 +129,7 @@ struct VoiceSampleEditorView: View {
                     .padding(.vertical, 8)
                     .frame(minHeight: 220)
                     .disabled(loading || loadFailed)
-                    .opacity((loading || loadFailed) ? 0.4 : 1)
+                    .opacity((loading || loadFailed) ? 0 : 1)
                     .onChange(of: sample) { _, new in
                         if new.count > maxLength {
                             sample = String(new.prefix(maxLength))
@@ -192,7 +213,6 @@ struct VoiceSampleEditorView: View {
             sample = current
             initialSample = current
         } catch {
-            self.error = "yüklenemedi: \(error.localizedDescription). tekrar dene."
             self.loadFailed = true
         }
     }
@@ -214,7 +234,8 @@ struct VoiceSampleEditorView: View {
             error = nil
             UINotificationFeedbackGenerator().notificationOccurred(.success)
         } catch {
-            self.error = "kaydedilemedi: \(error.localizedDescription)"
+            // Kaydetme hatası — teknik detay kullanıcıya gösterilmez
+            self.error = "kaydedilemedi. tekrar dene."
         }
     }
 }

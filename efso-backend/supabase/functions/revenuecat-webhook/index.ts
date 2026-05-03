@@ -29,6 +29,8 @@ interface RCBody {
   api_version: string;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const ACTIVE_TYPES = new Set([
   "INITIAL_PURCHASE",
   "RENEWAL",
@@ -69,6 +71,11 @@ Deno.serve(async (req: Request) => {
   const ev = body?.event;
   if (!ev?.type || !ev.app_user_id) {
     return errorResponse("invalid_input", "missing event fields");
+  }
+
+  if (!UUID_RE.test(ev.app_user_id)) {
+    console.warn("non-UUID app_user_id ignored:", ev.app_user_id.slice(0, 30));
+    return jsonResponse({ ok: true, ignored: "non_uuid_user" });
   }
 
   const isActive = ACTIVE_TYPES.has(ev.type);

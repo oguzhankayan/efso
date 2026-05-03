@@ -33,7 +33,6 @@ efso-ios/Efso.xcworkspace/
 
 # SPM
 .build/
-Package.resolved
 
 # Supabase local
 efso-backend/.env

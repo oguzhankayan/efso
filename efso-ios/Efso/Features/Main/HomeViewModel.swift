@@ -63,8 +63,14 @@ final class HomeViewModel {
     }
     var pickedScreenshot: Data?
 
-    // Profile cache (set after onboarding)
-    var archetype: ArchetypePrimary? = .dryroaster
+    // Profile cache — cold launch'ta UDKey'den, sonra DB'den güncellenir.
+    var archetype: ArchetypePrimary? = {
+        if let raw = UserDefaults.standard.string(.currentArchetype),
+           let cached = ArchetypePrimary(rawValue: raw) {
+            return cached
+        }
+        return .dryroaster
+    }()
 
     /// Kullanıcının seçtiği ton. nil = backend default (mode'a özgü 3 farklı ton).
     /// Setlendiğinde 3 cevap aynı tonda farklı açılardan üretilir.
@@ -132,15 +138,37 @@ final class HomeViewModel {
     }
 
     init() {
-        Task { await loadHistory() }
+        Task {
+            await loadArchetype()
+            await loadHistory()
+        }
+    }
+
+    func loadArchetype() async {
+        guard let uid = AuthService.shared.userID?.uuidString else { return }
+        do {
+            struct Row: Decodable { let archetype_primary: String? }
+            let rows: [Row] = try await SupabaseService.shared.client
+                .from("profiles")
+                .select("archetype_primary")
+                .eq("id", value: uid)
+                .execute()
+                .value
+            if let raw = rows.first?.archetype_primary,
+               let parsed = ArchetypePrimary(rawValue: raw) {
+                archetype = parsed
+                UserDefaults.standard.set(raw, .currentArchetype)
+            }
+        } catch {
+            SentrySDK.capture(message: "loadArchetype failed: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - Stage transitions
 
     func selectMode(_ mode: Mode) {
         resetFlowState()
-        // Ton seçimi her yeni session'da temiz başlar — sürpriz lock-in olmasın.
-        selectedTone = nil
+        selectedTone = .esprili
         stage = .picker(mode)
     }
 
@@ -202,6 +230,8 @@ final class HomeViewModel {
             }
         }()
         guard let mode else { return }
+        generationTask?.cancel()
+        generationTask = nil
         if setTone { selectedTone = tone }
         streamingObservation = ""
         streamingReplies = [:]
@@ -210,9 +240,20 @@ final class HomeViewModel {
         stage = .generation(mode)
 
         if mode == .tonla {
+            guard !draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                lastError = "taslak metni boş"
+                generationPhase = .failed
+                return
+            }
             generationTask = Task { await runTonlaGeneration() }
+        } else if let existingConvId = conversationId {
+            generationTask = Task { await streamGenerateReplies(conversationId: existingConvId, mode: mode) }
         } else {
-            guard let data = pickedScreenshot else { return }
+            guard let data = pickedScreenshot else {
+                lastError = "önce ekran görüntüsü seç"
+                generationPhase = .failed
+                return
+            }
             generationTask = Task { await runRealGeneration(mode: mode, imageData: data) }
         }
     }
@@ -220,7 +261,10 @@ final class HomeViewModel {
     /// Screenshot picker'dan generation'a geçiş (cevap/açılış/davet).
     func proceedToGeneration() {
         guard case .picker(let mode) = stage,
-              let data = pickedScreenshot else { return }
+              let data = pickedScreenshot else {
+            lastError = "önce ekran görüntüsü seç"
+            return
+        }
         stage = .generation(mode)
         generationTask = Task { await runRealGeneration(mode: mode, imageData: data) }
     }
@@ -303,6 +347,7 @@ final class HomeViewModel {
     func updateArchetype(_ newArchetype: ArchetypePrimary) async throws {
         let prev = archetype
         archetype = newArchetype
+        UserDefaults.standard.set(newArchetype.rawValue, .currentArchetype)
         do {
             try await SupabaseService.shared.client
                 .from("profiles")
@@ -311,6 +356,7 @@ final class HomeViewModel {
                 .execute()
         } catch {
             archetype = prev
+            UserDefaults.standard.set(prev?.rawValue, .currentArchetype)
             throw error
         }
     }
@@ -326,6 +372,8 @@ final class HomeViewModel {
         UserDefaults.standard.set(false, .onboardingCompleted)
         UserDefaults.standard.set(false, .aiConsentGiven)
         UserDefaults.standard.set(false, .archetypeSpotlightSeen)
+        UserDefaults.standard.set(false, .modeHintSeen)
+        UserDefaults.standard.removeObject(forKey: UDKey.currentArchetype.rawValue)
         await SubscriptionManager.shared.signOut()
         try? await AuthService.shared.signOut()
     }
@@ -333,6 +381,7 @@ final class HomeViewModel {
     func revokeAIConsent() async {
         UserDefaults.standard.set(false, .aiConsentGiven)
         UserDefaults.standard.set(false, .onboardingCompleted)
+        UserDefaults.standard.set(false, .modeHintSeen)
         if let uid = AuthService.shared.userID?.uuidString {
             try? await SupabaseService.shared
                 .from("profiles")
@@ -380,7 +429,8 @@ final class HomeViewModel {
                 pickerState = .empty
             }
         } catch {
-            lastError = error.localizedDescription
+            // Fotoğraf yükleme hatası — teknik detay kullanıcıya gösterilmez
+            lastError = "fotoğraf yüklenemedi. tekrar dene."
             pickerState = .empty
         }
     }
@@ -395,7 +445,8 @@ final class HomeViewModel {
         do {
             json = try buildManualInputJSON(mode: mode)
         } catch {
-            lastError = "manuel giriş: \(error.localizedDescription)"
+            // Manuel giriş JSON encode hatası — teknik detay kullanıcıya gösterilmez
+            lastError = "bir şeyler ters gitti. tekrar dene."
             generationPhase = .failed
             return
         }
@@ -509,7 +560,7 @@ final class HomeViewModel {
                 stage = .home
                 return
             }
-            lastError = "parse: \(error.localizedDescription)"
+            lastError = "ekran görüntüsü okunamadı. tekrar dene."
             generationPhase = .failed
             return
         }
@@ -554,7 +605,7 @@ final class HomeViewModel {
                         stage = .home
                         return
                     }
-                    lastError = "üretim: \(msg)"
+                    lastError = "bir şeyler ters gitti. tekrar dene."
                     generationPhase = .failed
                     return
                 }
@@ -579,13 +630,15 @@ final class HomeViewModel {
                 mode: mode
             ))
             await loadHistory()
+            ReviewTrigger.onGenerationCompleted(totalCount: history.count)
         } catch {
+            if Task.isCancelled { return }
             if isFreeTierError(error) {
                 paywallTrigger = .dailyLimit
                 stage = .home
                 return
             }
-            lastError = "üretim: \(error.localizedDescription)"
+            lastError = "bağlantı hatası. tekrar dene."
             generationPhase = .failed
         }
     }
@@ -628,7 +681,7 @@ final class HomeViewModel {
                 stage = .home
                 return
             }
-            lastError = "parse: \(error.localizedDescription)"
+            lastError = "ekran görüntüsü okunamadı. tekrar dene."
             generationPhase = .failed
             return
         }
@@ -686,7 +739,7 @@ final class HomeViewModel {
                 stage = .home
                 return
             }
-            lastError = "tonla: \(error.localizedDescription)"
+            lastError = "bağlantı hatası. tekrar dene."
             generationPhase = .failed
             return
         }
@@ -728,7 +781,9 @@ final class HomeViewModel {
                         stage = .home
                         return
                     }
-                    lastError = "generate: \(msg)"
+                    lastError = "bir şeyler ters gitti. tekrar dene."
+                    generationPhase = .failed
+                    return
                 }
             }
         } catch {
@@ -738,7 +793,9 @@ final class HomeViewModel {
                 stage = .home
                 return
             }
-            lastError = "generate: \(error.localizedDescription)"
+            lastError = "bağlantı hatası. tekrar dene."
+            generationPhase = .failed
+            return
         }
 
         // SSE drop detection — tonla için de partial result reject.
@@ -759,6 +816,8 @@ final class HomeViewModel {
             conversationId: conversationId,
             mode: .tonla
         ))
+
+        ReviewTrigger.onGenerationCompleted(totalCount: history.count + 1)
 
         history.insert(.init(
             id: conversationId ?? UUID().uuidString,
