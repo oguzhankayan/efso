@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Refined-y2k tonla modu — büyük italic "taslağı yaz." + textarea +
 /// asistan sesli SES SIZIYOR hint kartı + ton seçici + holo CTA.
@@ -9,6 +10,7 @@ struct TonlaDraftView: View {
     @FocusState private var draftFocused: Bool
     @FocusState private var contextFocused: Bool
     @State private var showContextField = false
+    @State private var safeAreaTopInset: CGFloat = 59
 
     private var canSubmit: Bool {
         !vm.draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -66,6 +68,16 @@ struct TonlaDraftView: View {
                     .padding(.trailing, 14)
             } else {
                 Color.clear.frame(width: 60, height: 44)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, safeAreaTopInset)
+        .padding(.bottom, 4)
+        .onAppear {
+            if let scene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene }).first,
+               let inset = scene.windows.first?.safeAreaInsets.top, inset > 0 {
+                safeAreaTopInset = inset
             }
         }
     }

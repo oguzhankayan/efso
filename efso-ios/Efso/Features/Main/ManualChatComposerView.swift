@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ManualChatComposerView: View {
     @Bindable var vm: HomeViewModel
@@ -6,6 +7,7 @@ struct ManualChatComposerView: View {
 
     @State private var inputText = ""
     @State private var selectedSender: HomeViewModel.ManualSender = .other
+    @State private var safeAreaTopInset: CGFloat = 59
     @FocusState private var inputFocused: Bool
 
     var body: some View {
@@ -16,10 +18,10 @@ struct ManualChatComposerView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         header
                             .padding(.top, 14)
-                            .padding(.horizontal, 24)
+                            .padding(.horizontal, 20)
                         messagesArea
                             .padding(.top, 18)
-                            .padding(.horizontal, 16)
+                            .padding(.horizontal, 20)
                     }
                     .padding(.bottom, 16)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -76,7 +78,17 @@ struct ManualChatComposerView: View {
                 Color.clear.frame(width: 60, height: 44)
             }
         }
+        .padding(.horizontal, 20)
+        .padding(.top, safeAreaTopInset)
+        .padding(.bottom, 4)
         .animation(.easeInOut(duration: 0.2), value: canSubmit)
+        .onAppear {
+            if let scene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene }).first,
+               let inset = scene.windows.first?.safeAreaInsets.top, inset > 0 {
+                safeAreaTopInset = inset
+            }
+        }
     }
 
     // MARK: - Header
@@ -151,10 +163,10 @@ struct ManualChatComposerView: View {
                     .padding(.horizontal, 24)
             }
             senderToggle
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 20)
             inputRow
-                .padding(.horizontal, 16)
-                .padding(.bottom, 14)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 24)
         }
     }
 

@@ -73,7 +73,7 @@ struct GenerationView: View {
     private func readSafeArea() {
         if let scene = UIApplication.shared.connectedScenes
             .compactMap({ $0 as? UIWindowScene }).first,
-           let inset = scene.keyWindow?.safeAreaInsets.top, inset > 0 {
+           let inset = scene.windows.first?.safeAreaInsets.top, inset > 0 {
             safeAreaTopInset = inset
         }
     }

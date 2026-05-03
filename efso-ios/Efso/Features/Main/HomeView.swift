@@ -20,7 +20,8 @@ struct HomeView: View {
     @State private var showModeHint: Bool = false
     @State private var modeHintPulse: Bool = false
     @State private var selectedHistoryItem: ConversationHistoryItem?
-    @State private var safeAreaTopInset: CGFloat = 47
+    @State private var safeAreaTopInset: CGFloat = 59
+    @State private var avatarCenter: CGPoint = .zero
     @State private var cachedStats: HomeStats?
 
     var body: some View {
@@ -86,9 +87,9 @@ struct HomeView: View {
             }
         }
         .overlay {
-            if showArchetypeSpotlight {
+            if showArchetypeSpotlight, avatarCenter != .zero {
                 SpotlightOverlay(
-                    targetCenter: CGPoint(x: 24 + 18, y: safeAreaTopInset + 6 + 22 + 14 + 18),
+                    targetCenter: avatarCenter,
                     targetRadius: 22,
                     title: "tarzını buradan değiştir",
                     subtitle: "istediğin zaman avatara dokun, başka bir arketipe geç. nasıl çalışır bilgisi sağ üstteki ayarlarda.",
@@ -153,11 +154,11 @@ struct HomeView: View {
 
             topBar
                 .padding(.top, 14)
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 20)
                 .padding(.bottom, 14)
 
             observationStrip
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 20)
                 .padding(.bottom, 14)
 
             modeList
@@ -165,7 +166,7 @@ struct HomeView: View {
             Spacer(minLength: 12)
 
             quotaCard
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 20)
 
             contextFooter
                 .padding(.top, quotaCardVisible ? 10 : 0)
@@ -255,6 +256,14 @@ struct HomeView: View {
                         }
                     }
                     .frame(width: 36, height: 36)
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear.onAppear {
+                                let frame = geo.frame(in: .global)
+                                avatarCenter = CGPoint(x: frame.midX, y: frame.midY)
+                            }
+                        }
+                    )
 
                     if vm.archetype != nil {
                         Text(archetypeShortLabel)
