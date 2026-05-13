@@ -1,0 +1,11 @@
+# GitHub linguist overrides — accurate language stats.
+
+# Agent tooling (Claude Code skills) — not project code.
+.agents/** linguist-vendored
+
+# Adobe ExtendScript / Illustrator scripts — not JavaScript/React.
+efso-ios/Resources/design-source/** linguist-vendored
+*.jsx linguist-vendored
+
+# Generated / lock files
+skills-lock.json linguist-generated
