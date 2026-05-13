@@ -1,5 +1,7 @@
 # efso
 
+> Open source · MIT lisanslı · iOS app + Supabase backend
+
 **Türkiye-first AI iletişim koçu.** Zor mesaj ekran görüntüsünü ver, üç farklı tonda üç cevap üret. Ya da konuşmayı/profili elle yaz, üret. Asistan sesi gözlemci, çıktı sesi karşı tarafa atılacak gerçek mesaj.
 
 App Store kategorisi: **Lifestyle** (dating-first ama "iletişim koçu" konumlanması). Brand karakteri: GenZ tempo, sokak zekası, internet rahat ama klişe değil, bilinçli ironi. 6 arketip × 5 ton matrisi.
@@ -127,4 +129,13 @@ Detay: `efso-backend/README.md` ve `efso-ios/SETUP.md`.
 
 ## Lisans
 
-Proprietary — © 2026 Oğuzhan Kayan
+MIT — © 2026 Oğuzhan Kayan. Detay: [LICENSE](LICENSE).
+
+Kişisel/ticari kullanım, fork, değişiklik ve dağıtım serbest. Tek koşul: telif notunu koru.
+
+## Katkı
+
+Issue/PR açmadan önce `CLAUDE.md` (proje context'i) ve `HANDOFF.md`'yi (mevcut durum) okumanı öneririm. Stil: küçük & focused PR, Türkçe yorum + İngilizce identifier, test mecburi (Models / ViewModels / API client için unit test).
+
+Backend secret'ları için: `efso-backend/.env.local.example` → kopyala doldur.
+iOS secret'ları için: `efso-ios/{Debug,Release}.xcconfig.template` → kopyala doldur.

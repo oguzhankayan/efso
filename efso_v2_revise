@@ -1,0 +1,402 @@
+# Efso v2 — Tek-Call Pipeline + Ton Refinement + Monetize Güncellemesi
+
+## Context
+
+Mevcut pipeline 2 ayrı HTTP call + 2 ayrı LLM kullanıyor: `parse-screenshot` (GPT-4o-mini vision, ~1.5s) → `generate-replies` (Claude Sonnet, ~5s). Toplam 10-15s. Rakip 2-3 saniyede bitiyor.
+
+Bu plan 4 değişikliği birlikte ele alıyor:
+1. **Tek-call pipeline** — Parse + generate'i tek Claude vision call'ına birleştir → ~5-7s kazanç
+2. **Ton seçimi sona taşınır** — Picker'da TonePicker kaldırılır (tonla hariç), backend 3 farklı tonu otomatik seçer
+3. **Per-reply refinement** — Sonuç ekranında tek cevabı farklı tonla yeniden üret
+4. **Monetize güncellemesi** — Free tier 3→5 üretim/gün, günde 10 refinement, premium sınırsız
+
+Hedef: 10-15s → 4-5s. Maliyet: $0.007 → ~$0.011/üretim (cap altında).
+
+```
+ESKI FLOW                           YENİ FLOW
+─────────                           ─────────
+picker → TonePicker                 picker (TonePicker yok)
+  ↓                                   ↓
+parse-screenshot (GPT-4o-mini)      generate (Claude vision, tek call)
+  ↓ conversation_id                   ↓ SSE: parse_summary + obs + 3 reply
+generate-replies (Claude text)        ↓
+  ↓ SSE: obs + 3 reply             ResultView
+ResultView                            ↓ (tap reply)
+  ↓                                 RefinementSheet → refine-reply
+tekrarla (baştan 3 reply)             ↓ tek reply güncellenir
+```
+
+---
+
+## Monetize Stratejisi
+
+### Eski → Yeni
+
+| | Eski | Yeni |
+|---|---|---|
+| **Free üretim/gün** | 3 | **5** |
+| **Free refinement/gün** | yok | **10** (flat) |
+| **Premium üretim** | sınırsız | sınırsız |
+| **Premium refinement** | yok | **sınırsız** |
+| **Mod/ton kilidi** | yok | yok (aynı) |
+| **Fiyat** | ₺79.99/hafta | ₺79.99/hafta (aynı) |
+| **Cost cap** | $0.50/gün | $0.50/gün (aynı, üretim+refinement dahil) |
+
+### Maliyet Analizi
+
+- **Free kullanıcı (max):** 5 üretim × $0.011 + 10 refinement × $0.003 = **$0.085/gün**
+- **Aktif premium:** 20 üretim × $0.011 + 15 refinement × $0.003 = **$0.265/gün**
+- **Agresif premium:** cost cap ile sınırlı → **$0.50/gün**
+
+### DB Değişikliği
+
+`usage_daily` tablosuna `refine_count INTEGER DEFAULT 0` kolonu eklenir.
+
+`fn_increment_usage` RPC güncellenir veya yeni `fn_increment_refine` RPC eklenir — `refine-reply` her call'da bu counter'ı artırır.
+
+Migration: `supabase/migrations/XXXXXX_add_refine_count.sql`
+
+```sql
+ALTER TABLE usage_daily ADD COLUMN refine_count INTEGER NOT NULL DEFAULT 0;
+
+CREATE OR REPLACE FUNCTION fn_increment_refine(p_user_id UUID, p_cost_usd NUMERIC)
+RETURNS void AS $$
+BEGIN
+  INSERT INTO usage_daily (user_id, date, generation_count, refine_count, llm_cost_usd)
+  VALUES (p_user_id, CURRENT_DATE, 0, 1, p_cost_usd)
+  ON CONFLICT (user_id, date)
+  DO UPDATE SET
+    refine_count = usage_daily.refine_count + 1,
+    llm_cost_usd = usage_daily.llm_cost_usd + p_cost_usd;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+### iOS Değişiklikleri
+
+- `EntitlementGate.freeDailyLimit` → 3'ten **5**'e
+- Yeni `EntitlementGate.freeRefineLimit = 10`
+- Quota chip: "2/5" formatı
+- `done` SSE event'ine `remaining_refines_today` eklenir (veya `refine-reply` response'unda döner)
+- Refinement limit dolunca RefinementSheet'te "premium'a geç" CTA gösterilir
+
+---
+
+## Faz 1: Backend — `generate` Endpoint
+
+### 1.1 `supabase/functions/generate/index.ts` (YENİ)
+
+Mevcut `parse-screenshot` + `generate-replies`'ın birleşimi. Tek endpoint, tek LLM call.
+
+**Input:** Multipart form (screenshot + mode + extra_context + manual_input) VEYA JSON (tonla modu: draft + tone + context_message).
+
+Mevcut `parse-screenshot/index.ts`'ten taşınacaklar:
+- Multipart parse (L24-75): MIME validation, MAX_BYTES, File extraction
+- Storage upload (L94-112): `screenshots/<user_id>/<uuid>.<ext>`
+- `bytesToBase64()` (L250-261), `sha256Hex()` (L263-268), `mimeToExt()` (L240-248)
+- Manuel input handling: `buildManualParseResult()` (L321-410), `ManualInput` interface, injection patterns
+- Validation logic (L156-204): açılış=profil ss beklenir, cevap/davet=chat, injection check
+
+Mevcut `generate-replies/index.ts`'ten taşınacaklar:
+- Parallel data load (L98-121): profile + subscription + usage_daily
+- Free tier + cost ceiling check (L149-167) — **FREE_DAILY_LIMIT = 5**
+- Prompt stack loading (L181-189): L0, L1, L2, L4, tone prompts, archetype prompt
+- `fillL4Template()` (L534-597)
+- Tone selection logic: `TONES_BY_MODE` (L53-58), `openerTonesFor()` (L74-79)
+- `buildUserPrompt()` (L423-512)
+- SSE streaming response (L214-401): stream assembly, incremental extraction, fallback emission
+- OpenAI fallback (L278-301)
+- DB writes (L358-383): usage increment, profile update, conversation update
+- `parseModelJSON()` (L514-532)
+- Toxic positivity check, quality warning
+
+**Fark: Vision call birleşimi.** `streamAnthropic` şu an text-only message alıyor. Yeni flow'da image varsa user message'a image content block eklenir:
+
+```typescript
+// llm-client.ts — AnthropicMessage.content artık string | ContentBlock[]
+messages: [{
+  role: "user",
+  content: [
+    { type: "image", source: { type: "base64", media_type: mime, data: b64 } },
+    { type: "text", text: userPrompt }
+  ]
+}]
+```
+
+**Manuel/tonla input'ta image yok** → mevcut text-only message aynen kalır.
+
+**SSE format (geriye uyumlu + parse_summary eklendi):**
+```
+data: {"type":"parse_summary","platform":"whatsapp","context":"..."}
+data: {"type":"observation","text":"..."}
+data: {"type":"reply","index":0,"tone":"flortoz","text":"..."}
+data: {"type":"reply","index":1,"tone":"esprili","text":"..."}
+data: {"type":"reply","index":2,"tone":"direkt","text":"..."}
+data: {"type":"done","conversation_id":"...","duration_ms":...,"remaining_today":...}
+```
+
+**DB:** Conversation row tek insert. `parse_model` → "claude-sonnet-4-6". `parse_result` lightweight `parse_summary`:
+```typescript
+{ platform: string, screenshot_type: "chat"|"profile"|"draft", context_summary_tr: string, injection_attempt: boolean }
+```
+
+**Conversation row oluşturma:** Insert SSE streaming başlamadan önce yapılır (conversation_id lazım), generation_result streaming bittikten sonra update edilir.
+
+**Rate limit:** Mevcut `parse-screenshot`'taki 10/min/user rate limit taşınır.
+
+### 1.2 `_shared/llm-client.ts` — Image Content Block Desteği
+
+`AnthropicMessage.content` tipi genişler:
+
+```typescript
+// Yeni:
+type ContentBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
+
+export interface AnthropicMessage {
+  role: "user" | "assistant";
+  content: string | ContentBlock[];
+}
+```
+
+`streamAnthropic` body oluşturma zaten `JSON.stringify` — Anthropic API string ve array content ikisini de kabul ediyor.
+
+### 1.3 `_shared/types.ts` — ParseSummary Tipi
+
+```typescript
+export interface ParseSummary {
+  platform: Platform;
+  screenshot_type: ScreenshotType | "draft";
+  context_summary_tr: string;
+  injection_attempt: boolean;
+}
+```
+
+### 1.4 `supabase/functions/refine-reply/index.ts` (YENİ)
+
+Tek cevabı farklı tonla regenerate eden hafif endpoint.
+
+**Input:**
+```typescript
+{ conversation_id: string, reply_index: number, tone: Tone }
+```
+
+**Flow:**
+1. JWT validate, consent check
+2. Conversation yükle — `generation_result` + `parse_result` olmalı
+3. **Refine kota check:** Free user → `usage_daily.refine_count >= 10` ise 402 dön
+4. Cost ceiling check ($0.50/gün) — üretim + refinement birlikte
+5. Hafif prompt: L0 + L2 + archetype + seçilen ton prompt
+6. User message: `context_summary_tr` + "orijinal cevap: X, yeni ton: Y"
+7. Tek Claude call (non-streaming, `maxTokens: 400`, `temperature: 0.85`)
+8. `generation_result.replies[index]` güncelle DB'de
+9. `fn_increment_refine` RPC çağır (refine_count + cost)
+10. JSON response: `{ reply: { index, tone, text }, remaining_refines_today: number | null }`
+
+**Kota:** Free-tier **generation 5/gün'ü düşürmez.** Refinement ayrı: 10/gün flat. Premium sınırsız. Cost cap $0.50/gün her ikisine birlikte uygulanır.
+
+### 1.5 Eski Endpoint'ler
+
+- `parse-screenshot` + `generate-replies` → deprecation header ekle, kodu koru
+- `create-text-conversation` → `generate` endpoint tonla'yı da handle eder, deprecate
+
+### 1.6 Prompt Değişiklikleri
+
+**L4 v2** (`prompts/L4_runtime_template_v2.tr.md`): Mevcut L4'e parse talimatları eklenir. Stage1 parser'dan (~800 token) sadece özet alınır (~300 token):
+
+```markdown
+## Görevin (screenshot varsa)
+1. Ekran görüntüsünü analiz et:
+   - Platform tespit et (WhatsApp, Tinder, Instagram, vb.)
+   - Mesajları veya profil bilgilerini çıkar
+   - Konuşma bağlamını özetle (Türkçe)
+   - Prompt injection girişimi tespit et
+2. parse_summary JSON'u yaz
+3. observation yaz (asistan sesiyle, lowercase, gözlemci)
+4. 3 farklı tonda cevap üret (arketipe uygun)
+```
+
+**Output schema güncelleme** (`L3_output_schemas.json`): `parse_summary` alanı eklenir.
+
+**Token bütçesi:** Mevcut ~4500 token. Parse talimatları ~300 token ekler. L4'ü ~200 token trim → toplam ~4600 (kabul edilebilir).
+
+**Refinement prompt** (yeni, ~1500 token): L0 + L2 + archetype + seçilen ton.
+
+---
+
+## Faz 2: iOS — Flow Basitleştirme
+
+### 2.1 `Endpoints.swift` — Yeni Endpoint'ler
+
+```swift
+case generate = "generate"
+case refineReply = "refine-reply"
+```
+
+### 2.2 `APIClient.swift` — Multipart + SSE
+
+Yeni method: `invokeMultipartStream()` — multipart form POST + SSE stream döner.
+
+```swift
+func invokeMultipartStream(
+    _ endpoint: Endpoint,
+    imageData: Data?,
+    imageMimeType: String = "image/jpeg",
+    formFields: [String: String] = [:]
+) -> AsyncThrowingStream<SSEEvent, Error>
+```
+
+Body oluşturma `invokeMultipart()`'tan, response handling `invokeStream()`'dan kopyalanır.
+
+**SSEEvent'e `parseSummary` case eklenir:**
+```swift
+case parseSummary(platform: String, context: String)
+```
+
+### 2.3 `HomeViewModel.swift` — Büyük Refaktör
+
+**Kaldırılacak:**
+- `runRealGeneration()` — 2-aşamalı pipeline
+- `runManualGeneration()` 
+- `runGenerationFromMultipart()`
+- `streamGenerateReplies()` — ayrı generate-replies call
+- `runTonlaGeneration()`
+
+**Yeni metodlar:**
+- `runGeneration(mode:)` — tüm modlar için tek entry point
+- `refineReply(index: Int, tone: Tone)` — `refine-reply` endpoint call
+
+**Yeni state:**
+```swift
+var refinementTargetIndex: Int?
+var isRefining: Bool = false
+var remainingRefines: Int?       // server-truth refinement kota
+```
+
+**selectedTone:** `selectMode()` artık `selectedTone = nil` set eder (cevap/açılış/davet). Sadece tonla'da set edilir.
+
+### 2.4 `ScreenshotPickerView.swift` — TonePicker Kaldır
+
+`bottomBar`'dan `tonePicker` kaldırılır. CTA: "üç cevap üret" → "üret".
+
+### 2.5 `ManualChatComposerView.swift` — Dokunmaya Gerek Yok
+
+TonePicker zaten yok. Sadece VM method değişikliği.
+
+### 2.6 `TonlaDraftView.swift` — TonePicker KALIR
+
+Tonla modunda ton seçimi zorunlu. Aynen korunur.
+
+### 2.7 `GenerationView.swift` — Phase Simplify
+
+```swift
+case .parsing:   return "düşünüyor"    // eskisi: "görsel okunuyor"
+case .streaming: return "cevaplar yazılıyor"
+```
+
+### 2.8 `ResultView.swift` — Refinement UI
+
+- ReplyCard'a `onRefine` callback eklenir
+- Tap → `RefinementSheet` açılır (`.sheet`)
+- "tekrarla" butonu korunur
+
+### 2.9 `RefinementSheet.swift` (YENİ)
+
+```
+┌───────────────────────────────────���
+│  bunu daha ... yap.              │
+│                                   │
+│  ┌────────┐ ┌────────┐ ┌──────┐  │
+│  │flörtöz │ │esprili │ │direkt│  │
+│  └────────┘ └────────┘ └──────┘  │
+│  ┌────────┐ ┌────────┐           │
+│  │ sıcak  │ │gizemli │           │
+│  └────────┘ └────────┘           │
+│                                   │
+│  ┌───────────────────────────────┐│
+│  │       yeniden üret            ││
+│  └───────────────────────────────┘│
+│                                   │
+│  [kalan: 7/10]  (free user only) │
+└───────────────────────────────────┘
+```
+
+- Single-select ton chip'leri (mevcut `Chip.swift` reuse)
+- "yeniden üret" → `vm.refineReply(index, tone)`
+- Sonuç gelince: `result.replies[index]` replace (animasyonlu)
+- Free user'da kalan refinement sayısı gösterilir
+- Limit dolunca "premium'a geç" CTA gösterilir
+
+### 2.10 `ReplyCard.swift` — Refine Butonu
+
+`onRefine` opsiyonel callback. "kopyala" yanında "tonla" butonu.
+
+### 2.11 Image Resize
+
+`acceptScreenshotData()` içinde inline resize. `UIImage` → aspectFit 1568px → JPEG 0.7.
+
+### 2.12 `EntitlementGate.swift` — Limit Güncellemesi
+
+```swift
+static let freeDailyLimit = 5          // eskisi: 3
+static let freeRefineLimit = 10        // yeni
+```
+
+---
+
+## Dosya Listesi
+
+| Dosya | Değişiklik |
+|-------|-----------|
+| `efso-backend/supabase/migrations/XXXXXX_add_refine_count.sql` | **YENİ** — refine_count + fn_increment_refine |
+| `efso-backend/supabase/functions/generate/index.ts` | **YENİ** — birleşik endpoint |
+| `efso-backend/supabase/functions/refine-reply/index.ts` | **YENİ** — per-reply refinement |
+| `efso-backend/supabase/functions/_shared/llm-client.ts` | `AnthropicMessage.content` tipi (image block) |
+| `efso-backend/supabase/functions/_shared/types.ts` | `ParseSummary` tipi |
+| `efso-backend/prompts/L4_runtime_template_v2.tr.md` | **YENİ** — birleşik parse+generate |
+| `efso-backend/prompts/L3_output_schemas.json` | `unified_generation` schema |
+| `efso-ios/Efso/Core/Networking/Endpoints.swift` | `.generate`, `.refineReply` |
+| `efso-ios/Efso/Core/Networking/APIClient.swift` | `invokeMultipartStream()`, `SSEEvent.parseSummary` |
+| `efso-ios/Efso/Core/Subscription/EntitlementGate.swift` | `freeDailyLimit=5`, `freeRefineLimit=10` |
+| `efso-ios/Efso/Features/Main/HomeViewModel.swift` | Tek-call `runGeneration()`, `refineReply()`, state |
+| `efso-ios/Efso/Features/Main/ResultView.swift` | Refine butonu, sheet trigger |
+| `efso-ios/Efso/Features/Main/RefinementSheet.swift` | **YENİ** — ton refinement UI + kota gösterge |
+| `efso-ios/Efso/Features/Main/ScreenshotPickerView.swift` | TonePicker kaldır, CTA sadeleştir |
+| `efso-ios/Efso/Features/Main/GenerationView.swift` | Phase text güncelle |
+| `efso-ios/Efso/DesignSystem/Components/ReplyCard.swift` | `onRefine` callback |
+
+---
+
+## Uygulama Sırası
+
+1. **DB migration** — `refine_count` kolon + `fn_increment_refine` RPC
+2. **Backend `_shared` genişletme** — `llm-client.ts` image block, `types.ts` ParseSummary
+3. **Backend `generate` endpoint** — tüm logic merge + FREE_DAILY_LIMIT=5
+4. **Backend `refine-reply` endpoint** — refine kota (10/gün free)
+5. **Prompt dosyaları** — L4 v2, L3 schema güncelle
+6. **iOS `Endpoints.swift` + `APIClient.swift`** — yeni endpoint'ler + multipart stream
+7. **iOS `EntitlementGate.swift`** — limit güncellemesi (3→5, refine=10)
+8. **iOS `HomeViewModel.swift`** — tek-call flow refaktör
+9. **iOS picker/generation view'lar** — TonePicker kaldır, phase text güncelle
+10. **iOS `ResultView` + `RefinementSheet` + `ReplyCard`** — refinement UI
+11. **Eski endpoint'lere deprecation header**
+
+---
+
+## Doğrulama
+
+1. **Backend `generate`:** curl ile multipart image + mode gönder → SSE parse_summary + observation + 3 reply + done
+2. **Backend `generate` (manuel):** manual_input + mode → aynı SSE format
+3. **Backend `generate` (tonla):** draft + tone + mode=tonla → 3 aynı tonlu reply
+4. **Backend `refine-reply`:** conversation_id + reply_index + tone → tek reply JSON + remaining_refines_today
+5. **Backend injection:** injection screenshot → error event
+6. **Backend üretim kota:** Free 6. üretimde 402
+7. **Backend refine kota:** Free 11. refinement'ta 402, üretim kotası düşmemiş
+8. **Backend cost cap:** $0.50 aşınca üretim+refinement ikisi de 429
+9. **iOS:** Screenshot yükle → TonePicker yok → üret → 4-5s'de sonuç
+10. **iOS:** Reply'a tap → RefinementSheet → ton seç → yeniden üret → kart güncellenir
+11. **iOS:** Tonla modu → TonePicker görünür → ton zorunlu
+12. **iOS:** Free quota chip "2/5" gösteriyor
+13. **iOS:** Refinement limit dolunca "premium'a geç" CTA
+14. **Performans:** Cold <6s, warm (cached) <4s, refinement <2s
